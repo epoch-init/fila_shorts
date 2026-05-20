@@ -1,0 +1,8 @@
+<resources>
+    <!--  Use Theme.Material.Light.NoActionBar as Material3 equivalent for XML themes often needs bridge or is handled differently in Compose.
+             Actually, for Compose apps, we typically use a simple parent or no-actionbar theme.  -->
+    <style name="Theme.Shorts" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/background_white</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
