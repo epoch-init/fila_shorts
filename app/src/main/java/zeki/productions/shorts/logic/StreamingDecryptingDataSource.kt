@@ -25,8 +25,10 @@ class StreamingDecryptDataSource(private val file: File) : BaseDataSource(true) 
             val iv = ByteArray(CryptoConstants.IV_SIZE)
             fileRaf.readFully(iv)
 
-            // FIX: Enforce 16-byte bounds to avert IllegalBlockSizeException
-            val maxChunk = minOf(CryptoConstants.HEADER_ENC_SIZE.toLong(), file.length() - CryptoConstants.IV_SIZE).toInt()
+            val maxChunk = minOf(
+                CryptoConstants.HEADER_ENC_SIZE.toLong(),
+                file.length() - CryptoConstants.IV_SIZE
+            ).toInt()
             val safeChunkSize = maxChunk - (maxChunk % 16)
 
             if (safeChunkSize > 0) {
@@ -36,7 +38,8 @@ class StreamingDecryptDataSource(private val file: File) : BaseDataSource(true) 
                 if (readHeader > 0) {
                     val validRead = readHeader - (readHeader % 16)
                     if (validRead > 0) {
-                        headerCache = CryptoHelper.decryptHeader(encryptedHeader.copyOf(validRead), iv)
+                        headerCache =
+                            CryptoHelper.decryptHeader(encryptedHeader.copyOf(validRead), iv)
                     }
                 }
             }
@@ -59,9 +62,9 @@ class StreamingDecryptDataSource(private val file: File) : BaseDataSource(true) 
         val toRead = minOf(length.toLong(), bytesRemaining).toInt()
         var bytesRead = 0
 
-        // FIX: Replaced constant check with accurate runtime size evaluation
         val headerSize = headerCache?.size ?: 0
 
+        // 1. Read from fast RAM cache (Decrypted Header)
         if (position < headerSize) {
             val headerAvailable = (headerSize - position).toInt()
             val chunkFromHeader = minOf(toRead, headerAvailable)
@@ -72,12 +75,19 @@ class StreamingDecryptDataSource(private val file: File) : BaseDataSource(true) 
             }
         }
 
+        // 2. Read remaining from Disk
         if (bytesRead < toRead) {
             val remainingToRead = toRead - bytesRead
             val fileRequestPos = position + bytesRead + CryptoConstants.IV_SIZE
 
             raf?.let {
-                it.seek(fileRequestPos)
+                // CRITICAL FIX: Prevent Disk Thrashing
+                // Only invoke expensive system seek if the file pointer isn't already aligned.
+                // This allows Android's kernel to use hardware-level read-ahead buffering.
+                if (it.filePointer != fileRequestPos) {
+                    it.seek(fileRequestPos)
+                }
+
                 val readFromFile = it.read(buffer, offset + bytesRead, remainingToRead)
                 if (readFromFile != -1) bytesRead += readFromFile
             }
@@ -103,7 +113,8 @@ class StreamingDecryptDataSource(private val file: File) : BaseDataSource(true) 
     }
 }
 
-class StreamingDecryptDataSourceFactory(private val file: File) : androidx.media3.datasource.DataSource.Factory {
+class StreamingDecryptDataSourceFactory(private val file: File) :
+    androidx.media3.datasource.DataSource.Factory {
     @UnstableApi
     override fun createDataSource() = StreamingDecryptDataSource(file)
 }

@@ -13,6 +13,7 @@ import zeki.productions.shorts.data.ShortsDatabase
 import zeki.productions.shorts.logic.DatabaseBridge
 import zeki.productions.shorts.logic.PermissionManager
 import zeki.productions.shorts.logic.SyncManager
+import zeki.productions.shorts.logic.VideoCacheManager
 import zeki.productions.shorts.ui.MainScreen
 import zeki.productions.shorts.ui.screens.PermissionRequestScreen
 import zeki.productions.shorts.ui.theme.ShortsTheme
@@ -26,11 +27,18 @@ class MainActivity : ComponentActivity() {
     private var syncManager: SyncManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // v1.9.6: Edge-to-Edge & Security Sterilization
+        // Edge-to-Edge & Security Sterilization
         enableEdgeToEdge()
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        )
 
         super.onCreate(savedInstanceState)
+
+        // Ensure cache is completely clean from previous sessions
+        VideoCacheManager.sterilize(this)
+
         liveDb = DatabaseBridge.getLiveDb(this)
         permissionManager = PermissionManager(this)
 
@@ -82,7 +90,6 @@ class MainActivity : ComponentActivity() {
             File(video.imagePath).delete()
 
             val parentDir = File(video.videoPath).parentFile
-            // FIX: Safely purge orphaned account folders while strictly protecting the root /Shorts directory.
             if (parentDir != null &&
                 parentDir.absolutePath != rootShortsDir &&
                 parentDir.isDirectory &&
@@ -97,6 +104,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         syncManager?.cancel()
+        // Wipe secure cache to prevent data exposure
+        VideoCacheManager.sterilize(this)
         super.onDestroy()
     }
 }

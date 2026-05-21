@@ -8,15 +8,11 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import kotlinx.coroutines.*
 import zeki.productions.shorts.data.VideoEntity
-import java.io.File
 
-/**
- * v1.9.4: Lifecycle-Aware Triple-Node Player Pool.
- * Optimized to handle global pause/resume signals to prevent background playback.
- */
 @OptIn(UnstableApi::class)
 class ExoPlayerPool(private val context: Context) {
     private val TAG = "GEMINI_DEBUG"
@@ -32,47 +28,83 @@ class ExoPlayerPool(private val context: Context) {
     }
 
     private fun createPlayer(): ExoPlayer {
-        return ExoPlayer.Builder(context).build().apply {
-            repeatMode = Player.REPEAT_MODE_ONE
-        }
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                2000, 5000, 500, 1000
+            ).build()
+
+        return ExoPlayer.Builder(context)
+            .setLoadControl(loadControl)
+            .build().apply {
+                repeatMode = Player.REPEAT_MODE_ONE
+            }
     }
 
-    fun updateWindow(targetVideos: List<VideoEntity>, activeId: String, isAppForeground: Boolean) {
+    suspend fun updateWindow(
+        targetVideos: List<VideoEntity>,
+        activeId: String,
+        isAppForeground: Boolean
+    ) {
         val targetIds = targetVideos.map { it.id }.toSet()
 
-        // 1. Evict expired players
-        val toEvict = activePlayers.keys.filter { it !in targetIds }
-        toEvict.forEach { id ->
-            val player = activePlayers.remove(id)
-            player?.let {
-                it.stop()
-                it.clearMediaItems()
-                availablePlayers.add(it)
+        // 1. Evict expired players and clean up storage
+        withContext(Dispatchers.Main) {
+            val toEvict = activePlayers.keys.filter { it !in targetIds }
+            toEvict.forEach { id ->
+                val player = activePlayers.remove(id)
+                player?.let {
+                    it.stop()
+                    it.clearMediaItems()
+                    availablePlayers.add(it)
+                }
             }
         }
 
-        // 2. Assign and Prepare new players
-        targetVideos.forEach { video ->
-            if (!activePlayers.containsKey(video.id)) {
-                val player = availablePlayers.removeFirstOrNull() ?: createPlayer()
-                val factory = StreamingDecryptDataSourceFactory(File(video.videoPath))
-                val source = ProgressiveMediaSource.Factory(factory)
-                    .createMediaSource(MediaItem.fromUri(Uri.fromFile(File(video.videoPath))))
+        // Delete evicted files from the secure cache
+        VideoCacheManager.cleanupIdle(context, targetIds)
 
-                player.setMediaSource(source)
-                player.prepare()
+        // 2. Prioritize the ACTIVE video first to minimize latency
+        val activeVideo = targetVideos.find { it.id == activeId }
+        if (activeVideo != null) {
+            preparePlayerForVideo(activeVideo, isActive = true, isAppForeground)
+        }
 
-                // Set initial playback state based on focus and app lifecycle
-                player.playWhenReady = (video.id == activeId && isAppForeground)
-                activePlayers[video.id] = player
+        // 3. Concurrently prepare the Next and Previous videos in the background
+        coroutineScope {
+            targetVideos.filter { it.id != activeId }.forEach { video ->
+                launch {
+                    preparePlayerForVideo(video, isActive = false, isAppForeground = false)
+                }
             }
         }
     }
 
-    /**
-     * Sterilizes all active playback.
-     * Called when the app moves to the background.
-     */
+    private suspend fun preparePlayerForVideo(
+        video: VideoEntity,
+        isActive: Boolean,
+        isAppForeground: Boolean
+    ) {
+        // Blocks until the video is safely cached in internal storage
+        val cachedFile = VideoCacheManager.prepareVideo(context, video) ?: return
+
+        withContext(Dispatchers.Main) {
+            if (!activePlayers.containsKey(video.id)) {
+                val player = availablePlayers.removeFirstOrNull() ?: createPlayer()
+
+                // Standard File playback - Full Native Hardware Acceleration
+                val mediaItem = MediaItem.fromUri(Uri.fromFile(cachedFile))
+                player.setMediaItem(mediaItem)
+                player.prepare()
+
+                activePlayers[video.id] = player
+            }
+
+            if (isActive) {
+                activePlayers[video.id]?.playWhenReady = isAppForeground
+            }
+        }
+    }
+
     fun pauseAll() {
         activePlayers.values.forEach { it.playWhenReady = false }
     }
@@ -82,6 +114,7 @@ class ExoPlayerPool(private val context: Context) {
         availablePlayers.forEach { it.release() }
         activePlayers.clear()
         availablePlayers.clear()
+        VideoCacheManager.sterilize(context) // Wipe temp files on exit
         Log.d(TAG, "PlayerPool: Resources Sterilized.")
     }
 }
