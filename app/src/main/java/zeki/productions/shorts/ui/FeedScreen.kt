@@ -18,10 +18,6 @@ import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.logic.ExoPlayerPool
 import zeki.productions.shorts.ui.components.VoidState
 
-/**
- * v1.9.4: Lifecycle-Synchronized Feed.
- * Listens to system ON_PAUSE/ON_RESUME events to lock/unlock ExoPlayer playback.
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FeedScreen(
@@ -40,7 +36,6 @@ fun FeedScreen(
     val pagerState = rememberPagerState(pageCount = { videos.size })
     var isPagerLocked by remember { mutableStateOf(false) }
 
-    // Lifecycle tracking to prevent audio bleeding in background
     var isAppForeground by remember { mutableStateOf(true) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -51,9 +46,11 @@ fun FeedScreen(
                     isAppForeground = false
                     playerPool.pauseAll()
                 }
+
                 Lifecycle.Event.ON_RESUME -> {
                     isAppForeground = true
                 }
+
                 else -> {}
             }
         }
@@ -71,28 +68,39 @@ fun FeedScreen(
         }
     }
 
-    LaunchedEffect(pagerState.currentPage, videos, isAppForeground) {
-        val currentIndex = pagerState.currentPage
-        if (currentIndex < 0 || currentIndex >= videos.size) return@LaunchedEffect
+    // FIX: Only trigger window updates when the active video ID actually changes
+    val activeVideoId = if (videos.isNotEmpty() && pagerState.currentPage < videos.size) {
+        videos[pagerState.currentPage].id
+    } else null
 
-        val activeId = videos[currentIndex].id
+    LaunchedEffect(activeVideoId, isAppForeground) {
+        if (activeVideoId == null) return@LaunchedEffect
+
+        val currentIndex = pagerState.currentPage
         val window = mutableListOf<VideoEntity>()
 
         window.add(videos[currentIndex])
         if (currentIndex > 0) window.add(videos[currentIndex - 1])
         if (currentIndex < videos.size - 1) window.add(videos[currentIndex + 1])
 
-        playerPool.updateWindow(window, activeId, isAppForeground)
-        if (isAppForeground) onVideoSeen(activeId)
+        playerPool.updateWindow(window, activeVideoId, isAppForeground)
+
+        // Prevents falsely counting likes/unlikes as new views
+        if (isAppForeground) onVideoSeen(activeVideoId)
     }
 
     VerticalPager(
         state = pagerState,
-        modifier = Modifier.fillMaxSize().background(Color.Black).clipToBounds(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clipToBounds(),
         key = { index -> if (index < videos.size) videos[index].id else index },
         userScrollEnabled = !isPagerLocked
     ) { page ->
-        Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds()) {
             if (page < videos.size) {
                 val video = videos[page]
                 val player = playerPool.activePlayers[video.id]
@@ -106,7 +114,9 @@ fun FeedScreen(
                         onScrubbingStateChanged = { isPagerLocked = it }
                     )
                 } else {
-                    Box(Modifier.fillMaxSize().background(Color.Black))
+                    Box(Modifier
+                        .fillMaxSize()
+                        .background(Color.Black))
                 }
             }
         }

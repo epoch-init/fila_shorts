@@ -24,6 +24,7 @@ import zeki.productions.shorts.ui.screens.AboutScreen
 import zeki.productions.shorts.ui.screens.SearchScreen
 import zeki.productions.shorts.ui.screens.SettingsScreen
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     liveDb: ShortsDatabase,
@@ -35,6 +36,9 @@ fun MainScreen(
     val scope = rememberCoroutineScope()
     var videos by remember { mutableStateOf(emptyList<VideoEntity>()) }
     var selectedCategory by remember { mutableStateOf("All") }
+
+    var showSettingsSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val categories = remember(videos) {
         val list = mutableListOf("All")
@@ -64,7 +68,6 @@ fun MainScreen(
     }
 
     Scaffold(
-        // Set insets to 0 so the Scaffold draws behind system bars (edge-to-edge)
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             Box(
@@ -72,17 +75,14 @@ fun MainScreen(
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.9f)
-                            )
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))
                         )
                     )
             ) {
                 NavigationBar(
-                    containerColor = Color.Transparent, // Fully transparent floating bar
+                    containerColor = Color.Transparent,
                     tonalElevation = 0.dp,
-                    windowInsets = WindowInsets.navigationBars // Respect bottom gestures/buttons
+                    windowInsets = WindowInsets.navigationBars
                 ) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
@@ -99,12 +99,16 @@ fun MainScreen(
                                 ) == true
                             } == true,
                             onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
+                                if (item == BottomNavItem.Settings) {
+                                    showSettingsSheet = true
+                                } else {
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
                                 }
                             },
                             colors = NavigationBarItemDefaults.colors(
@@ -112,7 +116,7 @@ fun MainScreen(
                                 unselectedIconColor = Color.Gray,
                                 selectedTextColor = Color.White,
                                 unselectedTextColor = Color.Gray,
-                                indicatorColor = Color.Transparent // Removes the default Material 3 pill background
+                                indicatorColor = Color.Transparent
                             )
                         )
                     }
@@ -120,8 +124,6 @@ fun MainScreen(
             }
         }
     ) { innerPadding ->
-        // Note: We deliberately IGNORE innerPadding for the Home route so it stays edge-to-edge.
-        // We will apply it manually to screens that need it (Search, Settings).
         NavHost(
             navController,
             startDestination = BottomNavItem.Home.route,
@@ -143,16 +145,15 @@ fun MainScreen(
                                 liveDb.videoDao().incrementViewCount(id)
                             }
                         },
-                        onToggleFavorite = { video ->
+                        // FIX: Trust the exact updatedVideo state passed from the player
+                        onToggleFavorite = { updatedVideo ->
                             scope.launch(Dispatchers.IO) {
-                                liveDb.videoDao()
-                                    .updateVideo(video.copy(isFavorite = !video.isFavorite))
+                                liveDb.videoDao().updateVideo(updatedVideo)
                                 onRefreshStable()
                             }
                         }
                     )
 
-                    // Category bar floats ON TOP of the FeedScreen
                     Box(modifier = Modifier.align(Alignment.TopCenter)) {
                         CategoryBar(categories, selectedCategory) { selectedCategory = it }
                     }
@@ -167,25 +168,31 @@ fun MainScreen(
                     }
                 }
             }
-            composable(BottomNavItem.Settings.route) {
-                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                    SettingsScreen(
-                        videoCount = videos.size,
-                        onDeleteSeen = {
-                            scope.launch(Dispatchers.IO) {
-                                onDeletePhysical()
-                                onRefreshStable()
-                            }
-                        },
-                        onNavigateToAbout = {
-                            navController.navigate("about")
-                        }
-                    )
-                }
-            }
             composable("about") {
-                AboutScreen(
-                    onBack = { navController.popBackStack() }
+                AboutScreen(onBack = { navController.popBackStack() })
+            }
+        }
+
+        if (showSettingsSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showSettingsSheet = false },
+                sheetState = sheetState,
+                containerColor = Color(0xFF0A0000),
+                dragHandle = { BottomSheetDefaults.DragHandle(color = Color.DarkGray) }
+            ) {
+                SettingsScreen(
+                    videoCount = videos.size,
+                    onDeleteSeen = {
+                        scope.launch(Dispatchers.IO) {
+                            onDeletePhysical()
+                            onRefreshStable()
+                            showSettingsSheet = false
+                        }
+                    },
+                    onNavigateToAbout = {
+                        showSettingsSheet = false
+                        navController.navigate("about")
+                    }
                 )
             }
         }

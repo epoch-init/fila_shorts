@@ -22,15 +22,15 @@ import zeki.productions.shorts.data.VideoEntity
 @Composable
 fun VideoInteractionOverlay(
     video: VideoEntity,
-    onToggleFavorite: (VideoEntity) -> Unit
+    isFavorite: Boolean, // FIX: Injected Optimistic State
+    onToggleFavorite: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // 1. Protective Gradient for Text Legibility
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.4f) // Covers bottom 40% of the screen
+                .fillMaxHeight(0.4f)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
@@ -41,15 +41,10 @@ fun VideoInteractionOverlay(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(
-                    start = 16.dp,
-                    end = 8.dp,
-                    bottom = 90.dp
-                ) // Lifted above the new floating Nav Bar
+                .padding(start = 16.dp, end = 8.dp, bottom = 90.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.Bottom
         ) {
-            // 2. Left Side: Metadata (Username & Description)
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -73,12 +68,10 @@ fun VideoInteractionOverlay(
                 )
             }
 
-            // 3. Right Side: The Action Column
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                // Seen Indicator
                 if (video.viewedCount > 0) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Surface(
@@ -89,7 +82,7 @@ fun VideoInteractionOverlay(
                             Icon(
                                 imageVector = Icons.Rounded.CheckCircle,
                                 contentDescription = "Seen",
-                                tint = Color(0xFF8B0000), // Oxblood Red
+                                tint = Color(0xFF8B0000),
                                 modifier = Modifier.padding(8.dp)
                             )
                         }
@@ -103,21 +96,20 @@ fun VideoInteractionOverlay(
                     }
                 }
 
-                // Favorite Button
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
-                        onClick = { onToggleFavorite(video) },
+                        onClick = onToggleFavorite,
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
-                            imageVector = if (video.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Favorite",
-                            tint = if (video.isFavorite) Color.Red else Color.White,
+                            tint = if (isFavorite) Color.Red else Color.White,
                             modifier = Modifier.size(36.dp)
                         )
                     }
                     Text(
-                        text = if (video.isFavorite) "Liked" else "Like",
+                        text = if (isFavorite) "Liked" else "Like",
                         color = Color.White,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold

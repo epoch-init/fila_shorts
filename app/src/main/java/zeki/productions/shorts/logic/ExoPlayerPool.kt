@@ -47,7 +47,6 @@ class ExoPlayerPool(private val context: Context) {
     ) {
         val targetIds = targetVideos.map { it.id }.toSet()
 
-        // 1. Evict expired players and clean up storage
         withContext(Dispatchers.Main) {
             val toEvict = activePlayers.keys.filter { it !in targetIds }
             toEvict.forEach { id ->
@@ -60,16 +59,13 @@ class ExoPlayerPool(private val context: Context) {
             }
         }
 
-        // Delete evicted files from the secure cache
         VideoCacheManager.cleanupIdle(context, targetIds)
 
-        // 2. Prioritize the ACTIVE video first to minimize latency
         val activeVideo = targetVideos.find { it.id == activeId }
         if (activeVideo != null) {
             preparePlayerForVideo(activeVideo, isActive = true, isAppForeground)
         }
 
-        // 3. Concurrently prepare the Next and Previous videos in the background
         coroutineScope {
             targetVideos.filter { it.id != activeId }.forEach { video ->
                 launch {
@@ -84,24 +80,23 @@ class ExoPlayerPool(private val context: Context) {
         isActive: Boolean,
         isAppForeground: Boolean
     ) {
-        // Blocks until the video is safely cached in internal storage
         val cachedFile = VideoCacheManager.prepareVideo(context, video) ?: return
 
         withContext(Dispatchers.Main) {
             if (!activePlayers.containsKey(video.id)) {
                 val player = availablePlayers.removeFirstOrNull() ?: createPlayer()
 
-                // Standard File playback - Full Native Hardware Acceleration
                 val mediaItem = MediaItem.fromUri(Uri.fromFile(cachedFile))
                 player.setMediaItem(mediaItem)
                 player.prepare()
 
+                // FIX: Only set playWhenReady upon INITIAL creation.
+                // Afterwards, ShortVideoPlayer.kt handles user pauses natively.
+                player.playWhenReady = isActive && isAppForeground
+
                 activePlayers[video.id] = player
             }
-
-            if (isActive) {
-                activePlayers[video.id]?.playWhenReady = isAppForeground
-            }
+            // Removed the rogue state override that was causing the un-pause bug.
         }
     }
 
@@ -114,7 +109,7 @@ class ExoPlayerPool(private val context: Context) {
         availablePlayers.forEach { it.release() }
         activePlayers.clear()
         availablePlayers.clear()
-        VideoCacheManager.sterilize(context) // Wipe temp files on exit
+        VideoCacheManager.sterilize(context)
         Log.d(TAG, "PlayerPool: Resources Sterilized.")
     }
 }

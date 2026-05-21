@@ -12,6 +12,29 @@ import android.os.VibratorManager
  */
 object HapticManager {
 
+    fun tick(context: Context) {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+
+            // Provide a crisp, short tactile bump perfect for fast UI interactions
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(20) // Fallback for older devices (20ms micro-vibration)
+            }
+        } catch (e: Exception) {
+            // Silently fail if permission is missing or hardware is unavailable
+        }
+    }
+
+
     private fun getVibrator(context: Context): Vibrator {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vibratorManager =

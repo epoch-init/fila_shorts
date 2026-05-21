@@ -18,11 +18,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -33,6 +34,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import zeki.productions.shorts.data.VideoEntity
+import zeki.productions.shorts.logic.HapticManager
 import kotlin.math.roundToInt
 
 data class TapEvent(val offset: Offset, val time: Long)
@@ -46,11 +48,13 @@ fun ShortVideoPlayer(
     onToggleFavorite: (VideoEntity) -> Unit,
     onScrubbingStateChanged: (Boolean) -> Unit
 ) {
+    val context = LocalContext.current
     var isPausedByUser by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     var isScrubbing by remember { mutableStateOf(false) }
 
-    // Fixed Double Tap State
+    // FIX: Optimistic State for instant UI response
+    var localIsFavorite by remember(video.id) { mutableStateOf(video.isFavorite) }
     var lastDoubleTap by remember { mutableStateOf<TapEvent?>(null) }
 
     LaunchedEffect(isScrubbing) { onScrubbingStateChanged(isScrubbing) }
@@ -84,10 +88,19 @@ fun ShortVideoPlayer(
             .fillMaxSize()
             .pointerInput(video.id) {
                 detectTapGestures(
-                    onTap = { isPausedByUser = !isPausedByUser },
+                    onTap = {
+                        HapticManager.tick(context) // Makes mashing feel responsive
+                        isPausedByUser = !isPausedByUser
+                    },
                     onDoubleTap = { offset ->
-                        lastDoubleTap = TapEvent(offset, System.currentTimeMillis())
-                        onToggleFavorite(video)
+                        HapticManager.tick(context)
+                        // Only trigger heart animation if we are FAVORITING, not unfavoriting.
+                        if (!localIsFavorite) {
+                            lastDoubleTap = TapEvent(offset, System.currentTimeMillis())
+                        }
+                        // Instantly toggle local state and push accurate state to DB
+                        localIsFavorite = !localIsFavorite
+                        onToggleFavorite(video.copy(isFavorite = localIsFavorite))
                     }
                 )
             }
@@ -110,9 +123,16 @@ fun ShortVideoPlayer(
             }
         )
 
-        VideoInteractionOverlay(video, onToggleFavorite)
+        // Pass optimistic state down to overlay
+        VideoInteractionOverlay(
+            video = video,
+            isFavorite = localIsFavorite,
+            onToggleFavorite = {
+                localIsFavorite = !localIsFavorite
+                onToggleFavorite(video.copy(isFavorite = localIsFavorite))
+            }
+        )
 
-        // Play/Pause Indicator
         AnimatedVisibility(
             visible = isPausedByUser && !isScrubbing,
             enter = scaleIn(initialScale = 1.5f) + fadeIn(),
@@ -135,9 +155,9 @@ fun ShortVideoPlayer(
             }
         }
 
-        // Fixed Bouncy Heart Animation
+        // FIX: Hexagon Artifact removed using graphicsLayer
         lastDoubleTap?.let { tap ->
-            key(tap.time) { // Forces a complete restart of the animation on every new tap
+            key(tap.time) {
                 val alpha = remember { Animatable(1f) }
                 val scale = remember { Animatable(0f) }
                 val offsetY = remember { Animatable(0f) }
@@ -153,27 +173,29 @@ fun ShortVideoPlayer(
                 Icon(
                     imageVector = Icons.Default.Favorite,
                     contentDescription = null,
-                    tint = Color(0xFF8B0000).copy(alpha = alpha.value),
+                    tint = Color(0xFF8B0000),
                     modifier = Modifier
                         .offset {
                             IntOffset(
-                                x = tap.offset.x.roundToInt() - 130, // Center X
-                                y = tap.offset.y.roundToInt() - 130 + offsetY.value.roundToInt() // Center Y + Float Up
+                                x = tap.offset.x.roundToInt() - 130,
+                                y = tap.offset.y.roundToInt() - 130 + offsetY.value.roundToInt()
                             )
                         }
                         .size(100.dp)
-                        .scale(scale.value)
-                        .shadow(12.dp, CircleShape, spotColor = Color.Red)
+                        .graphicsLayer {
+                            this.alpha = alpha.value
+                            this.scaleX = scale.value
+                            this.scaleY = scale.value
+                        }
                 )
             }
         }
 
-        // Fixed Scrubber Timeline (Pushed up into visible area)
         val barHeight by animateDpAsState(if (isScrubbing) 8.dp else 2.dp)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(bottom = 90.dp) // Clears the Bottom Navigation Bar
+                .padding(bottom = 90.dp)
                 .fillMaxWidth()
                 .height(barHeight)
                 .background(Color.White.copy(alpha = 0.2f))
@@ -192,7 +214,7 @@ fun ShortVideoPlayer(
             exit = fadeOut() + slideOutVertically { it / 2 },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 110.dp) // Floats above the timeline
+                .padding(bottom = 110.dp)
         ) {
             Text(
                 text = formatTime((progress * exoPlayer.duration).toLong()),
