@@ -45,11 +45,26 @@ data class FounderInfo(
     val phoneNo: String
 )
 
-val appDeveloper = DeveloperInfo(
-    name = "Zeki Zaid",
-    role = "Lead Developer",
-    phoneNo = "+2917252613",
-    email = "zaidzeki1@gmail.com"
+// FIX: Expanded Developer Roster
+val appDevelopers = listOf(
+    DeveloperInfo(
+        name = "Zeki Zaid",
+        role = "Lead Developer",
+        phoneNo = "+2917252613",
+        email = "zaidzeki1@gmail.com"
+    ),
+    DeveloperInfo(
+        name = "Biniam Nega",
+        role = "Developer",
+        phoneNo = "+2917160001",
+        email = "biniamnega12@gmail.com"
+    ),
+    DeveloperInfo(
+        name = "Yafet Michael",
+        role = "Developer",
+        phoneNo = "+2917622535",
+        email = "yafetmichael21@gmail.com"
+    )
 )
 
 val filaFounders = listOf(
@@ -63,12 +78,17 @@ fun AboutScreen(onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
     ) {
+        // FIX: Dynamic Navigation Bar Insets detection
+        val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            contentPadding = PaddingValues(bottom = 32.dp)
+            contentPadding = PaddingValues(
+                bottom = bottomPadding + 100.dp // Extra padding to clear the Bottom Nav Bar
+            )
         ) {
 
             // --- 0. TOP BAR ---
@@ -84,7 +104,7 @@ fun AboutScreen(onBack: () -> Unit) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
@@ -102,20 +122,20 @@ fun AboutScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .size(80.dp)
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF8B0000)),
+                            .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = "App Icon",
-                            tint = Color.White,
+                            tint = Color.White, // Stays white on top of the primary color
                             modifier = Modifier.size(40.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "FILA SPORTS",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 2.sp
@@ -123,10 +143,12 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
             }
 
-            // --- 2. THE DEVELOPER ---
+            // --- 2. THE DEVELOPERS ---
             item {
-                SectionHeader("The Developer")
-                DeveloperProfileCard(appDeveloper)
+                SectionHeader("The Developers")
+            }
+            items(appDevelopers) { developer ->
+                DeveloperProfileCard(developer)
             }
 
             // --- 3. THE FOUNDERS ---
@@ -145,7 +167,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 Spacer(modifier = Modifier.height(48.dp))
                 Text(
                     text = "© 2026 FILA Sports. All rights reserved.",
-                    color = Color.Gray.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     lineHeight = 18.sp
@@ -161,7 +183,7 @@ private fun SectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
-        color = Color.White,
+        color = MaterialTheme.colorScheme.onBackground,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 8.dp),
@@ -187,9 +209,9 @@ fun DeveloperProfileCard(developer: DeveloperInfo) {
                 )
             ),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0A0000)
+            containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(1.dp, Color(0xFF8B0000).copy(alpha = 0.3f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -202,14 +224,14 @@ fun DeveloperProfileCard(developer: DeveloperInfo) {
                     modifier = Modifier
                         .size(60.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.1f))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
                         .padding(4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = developer.name,
-                        tint = Color.White.copy(alpha = 0.5f),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(32.dp)
                     )
                 }
@@ -221,12 +243,12 @@ fun DeveloperProfileCard(developer: DeveloperInfo) {
                         text = developer.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = developer.role,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF8B0000),
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -234,7 +256,7 @@ fun DeveloperProfileCard(developer: DeveloperInfo) {
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = "Expand Profile",
-                    tint = Color.Gray
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
             }
 
@@ -254,8 +276,8 @@ fun DeveloperProfileCard(developer: DeveloperInfo) {
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1A0000),
-                            contentColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface
                         )
                     ) {
                         Icon(
@@ -276,8 +298,8 @@ fun DeveloperProfileCard(developer: DeveloperInfo) {
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1A0000),
-                            contentColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface
                         )
                     ) {
                         Icon(
@@ -299,7 +321,7 @@ fun FounderContactRow(name: String, phone: String) {
     val context = LocalContext.current
 
     Surface(
-        color = Color(0xFF0A0000),
+        color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -320,13 +342,13 @@ fun FounderContactRow(name: String, phone: String) {
                 text = name,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Phone,
                     contentDescription = "Call",
-                    tint = Color(0xFF8B0000),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -334,7 +356,7 @@ fun FounderContactRow(name: String, phone: String) {
                     text = phone,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
         }
