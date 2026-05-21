@@ -23,6 +23,7 @@ import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.ui.components.CategoryBar
 import zeki.productions.shorts.ui.navigation.BottomNavItem
 import zeki.productions.shorts.ui.screens.AboutScreen
+import zeki.productions.shorts.ui.screens.FavoritesListScreen
 import zeki.productions.shorts.ui.screens.ProfileScreen
 import zeki.productions.shorts.ui.screens.SearchScreen
 import zeki.productions.shorts.ui.screens.SettingsScreen
@@ -196,14 +197,13 @@ fun MainScreen(
                         allVideos = videos,
                         onBack = { navController.popBackStack() },
                         onVideoSelected = { videoId ->
-                            // FIX: Navigate to the specialized profile feed, NOT the home feed.
                             navController.navigate("profile_feed/$accountName?videoId=$videoId")
                         }
                     )
                 }
             }
 
-            // 4. NEW: DEDICATED PROFILE VIDEO FEED
+            // 4. PROFILE VIDEO FEED
             composable(
                 route = "profile_feed/{accountName}?videoId={videoId}",
                 arguments = listOf(
@@ -214,7 +214,6 @@ fun MainScreen(
                 val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
                 val targetId = backStackEntry.arguments?.getString("videoId")
 
-                // Isolate videos to ONLY this creator
                 val accountVideos = remember(videos, accountName) {
                     videos.filter { it.accountName.equals(accountName, ignoreCase = true) }
                 }
@@ -234,13 +233,9 @@ fun MainScreen(
                                 onRefreshStable()
                             }
                         },
-                        onAccountSelected = {
-                            // If they click the username while already in the profile feed, just go back.
-                            navController.popBackStack()
-                        }
+                        onAccountSelected = { navController.popBackStack() }
                     )
 
-                    // Cinematic Back Button over the video
                     IconButton(
                         onClick = { navController.popBackStack() },
                         modifier = Modifier
@@ -249,8 +244,8 @@ fun MainScreen(
                             .padding(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back to Profile",
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
                             tint = Color.White,
                             modifier = Modifier.size(28.dp)
                         )
@@ -258,13 +253,75 @@ fun MainScreen(
                 }
             }
 
-            // 5. ABOUT SCREEN
+            // 5. FAVORITES LIST SCREEN
+            composable("favorites_list") {
+                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                    FavoritesListScreen(
+                        allVideos = videos,
+                        onBack = { navController.popBackStack() },
+                        onVideoSelected = { videoId ->
+                            navController.navigate("favorites_feed?videoId=$videoId")
+                        }
+                    )
+                }
+            }
+
+            // 6. FAVORITES VIDEO FEED
+            composable(
+                route = "favorites_feed?videoId={videoId}",
+                arguments = listOf(navArgument("videoId") {
+                    defaultValue = ""; type = NavType.StringType
+                })
+            ) { backStackEntry ->
+                val targetId = backStackEntry.arguments?.getString("videoId")
+
+                val favoriteVideos = remember(videos) {
+                    videos.filter { it.isFavorite }
+                }
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    FeedScreen(
+                        videos = favoriteVideos,
+                        initialVideoId = targetId,
+                        onVideoSeen = { id ->
+                            scope.launch(Dispatchers.IO) {
+                                liveDb.videoDao().incrementViewCount(id)
+                            }
+                        },
+                        onToggleFavorite = { updatedVideo ->
+                            scope.launch(Dispatchers.IO) {
+                                liveDb.videoDao().updateVideo(updatedVideo)
+                                onRefreshStable()
+                            }
+                        },
+                        onAccountSelected = { accountName ->
+                            navController.navigate("profile/$accountName")
+                        }
+                    )
+
+                    IconButton(
+                        onClick = { navController.popBackStack() },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .statusBarsPadding()
+                            .padding(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            }
+
+            // 7. ABOUT SCREEN
             composable("about") {
                 AboutScreen(onBack = { navController.popBackStack() })
             }
         }
 
-        // --- BOTTOM SHEET INJECTION ---
         if (showSettingsSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showSettingsSheet = false },
@@ -284,6 +341,10 @@ fun MainScreen(
                     onNavigateToAbout = {
                         showSettingsSheet = false
                         navController.navigate("about")
+                    },
+                    onNavigateToFavorites = {
+                        showSettingsSheet = false
+                        navController.navigate("favorites_list")
                     }
                 )
             }
