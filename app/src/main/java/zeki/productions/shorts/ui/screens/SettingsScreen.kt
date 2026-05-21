@@ -140,7 +140,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "About FILA Sports",
+                "About FILA SHORTS",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )

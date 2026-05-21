@@ -6,6 +6,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,18 +21,19 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import zeki.productions.shorts.R
 
 data class DeveloperInfo(
     val name: String,
@@ -45,7 +47,6 @@ data class FounderInfo(
     val phoneNo: String
 )
 
-// FIX: Expanded Developer Roster
 val appDevelopers = listOf(
     DeveloperInfo(
         name = "Zeki Zaid",
@@ -80,18 +81,16 @@ fun AboutScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // FIX: Dynamic Navigation Bar Insets detection
         val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             contentPadding = PaddingValues(
-                bottom = bottomPadding + 100.dp // Extra padding to clear the Bottom Nav Bar
+                bottom = bottomPadding + 100.dp
             )
         ) {
 
-            // --- 0. TOP BAR ---
             item {
                 Row(
                     modifier = Modifier
@@ -110,7 +109,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
             }
 
-            // --- 1. BRAND HEADER ---
+            // --- BRAND HEADER ---
             item {
                 Column(
                     modifier = Modifier
@@ -125,16 +124,17 @@ fun AboutScreen(onBack: () -> Unit) {
                             .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
+                        // FIX: Custom App Icon Image
+                        Image(
+                            painter = painterResource(id = R.drawable.app_icon),
                             contentDescription = "App Icon",
-                            tint = Color.White, // Stays white on top of the primary color
-                            modifier = Modifier.size(40.dp)
+                            contentScale = ContentScale.Crop, // Keeps the image proportionally cropped inside the rounded box
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "FILA SPORTS",
+                        text = "FILA SHORTS",
                         color = MaterialTheme.colorScheme.onBackground,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Black,
@@ -143,7 +143,6 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
             }
 
-            // --- 2. THE DEVELOPERS ---
             item {
                 SectionHeader("The Developers")
             }
@@ -151,7 +150,6 @@ fun AboutScreen(onBack: () -> Unit) {
                 DeveloperProfileCard(developer)
             }
 
-            // --- 3. THE FOUNDERS ---
             item {
                 Spacer(modifier = Modifier.height(24.dp))
                 SectionHeader("FILA Founders")
@@ -162,11 +160,10 @@ fun AboutScreen(onBack: () -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // --- 4. COPYRIGHT ---
             item {
                 Spacer(modifier = Modifier.height(48.dp))
                 Text(
-                    text = "© 2026 FILA Sports. All rights reserved.",
+                    text = "© 2026 FILA SHORTS. All rights reserved.",
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,

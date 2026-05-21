@@ -6,7 +6,10 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import zeki.productions.shorts.data.ShortsDatabase
@@ -16,6 +19,7 @@ import zeki.productions.shorts.logic.SyncManager
 import zeki.productions.shorts.logic.VideoCacheManager
 import zeki.productions.shorts.ui.MainScreen
 import zeki.productions.shorts.ui.screens.PermissionRequestScreen
+import zeki.productions.shorts.ui.screens.SplashScreen
 import zeki.productions.shorts.ui.theme.ShortsTheme
 import zeki.productions.shorts.ui.theme.ThemeManager
 import java.io.File
@@ -24,6 +28,7 @@ class MainActivity : ComponentActivity() {
     private var liveDb: ShortsDatabase? = null
     private var stableDbState = mutableStateOf<ShortsDatabase?>(null)
     private lateinit var permissionManager: PermissionManager
+    private val TAG = "GEMINI_DEBUG"
     private var syncManager: SyncManager? = null
     lateinit var themeManager: ThemeManager
 
@@ -49,6 +54,9 @@ class MainActivity : ComponentActivity() {
             val currentTheme by themeManager.currentTheme.collectAsState()
 
             ShortsTheme(theme = currentTheme) {
+                // State to control the Splash Screen vs Main App flow
+                var showSplash by rememberSaveable { mutableStateOf(true) }
+
                 var isAccessGranted by remember { mutableStateOf(permissionManager.isFullyGranted()) }
                 val stableDb by stableDbState
 
@@ -57,26 +65,48 @@ class MainActivity : ComponentActivity() {
                         if (event == Lifecycle.Event.ON_RESUME) {
                             val granted = permissionManager.isFullyGranted()
                             if (granted != isAccessGranted) isAccessGranted = granted
-                            if (isAccessGranted) syncManager?.startProactiveSync()
+
+                            // Only proactively sync if we aren't stuck on the splash screen
+                            if (isAccessGranted && !showSplash) {
+                                syncManager?.startProactiveSync()
+                            }
                         }
                     }
                     lifecycle.addObserver(observer)
                     onDispose { lifecycle.removeObserver(observer) }
                 }
 
-                if (!isAccessGranted) {
-                    PermissionRequestScreen { permissionManager.startPermissionFlow() }
-                } else {
-                    MainScreen(
-                        liveDb = liveDb!!,
-                        stableDb = stableDb,
-                        themeManager = themeManager, // Passed to MainScreen
-                        onRefreshStable = {
-                            val fresh = DatabaseBridge.getStableDb(this@MainActivity, liveDb!!)
-                            stableDbState.value = fresh
-                        },
-                        onDeletePhysical = { performPhysicalDeletion() }
-                    )
+                // Smooth Crossfade transition from Splash to the App
+                Crossfade(
+                    targetState = showSplash,
+                    animationSpec = tween(600),
+                    label = "SplashTransition"
+                ) { isSplashing ->
+                    if (isSplashing) {
+                        SplashScreen(
+                            onSplashFinished = {
+                                showSplash = false
+                                // Kick off the sync process as soon as splash finishes (if we have permissions)
+                                if (isAccessGranted) syncManager?.startProactiveSync()
+                            }
+                        )
+                    } else {
+                        if (!isAccessGranted) {
+                            PermissionRequestScreen { permissionManager.startPermissionFlow() }
+                        } else {
+                            MainScreen(
+                                liveDb = liveDb!!,
+                                stableDb = stableDb,
+                                themeManager = themeManager,
+                                onRefreshStable = {
+                                    val fresh =
+                                        DatabaseBridge.getStableDb(this@MainActivity, liveDb!!)
+                                    stableDbState.value = fresh
+                                },
+                                onDeletePhysical = { performPhysicalDeletion() }
+                            )
+                        }
+                    }
                 }
             }
         }
