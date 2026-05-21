@@ -57,6 +57,9 @@ fun ShortVideoPlayer(
     var localIsFavorite by remember(video.id) { mutableStateOf(video.isFavorite) }
     var lastDoubleTap by remember { mutableStateOf<TapEvent?>(null) }
 
+    // FIX: Get dynamic system navigation bar height
+    val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
     LaunchedEffect(isScrubbing) { onScrubbingStateChanged(isScrubbing) }
 
     LaunchedEffect(isActive, isScrubbing) {
@@ -77,7 +80,7 @@ fun ShortVideoPlayer(
         modifier = Modifier
             .fillMaxSize()
             .clipToBounds()
-            .background(Color.Black) // Video background stays black to hide letterboxing
+            .background(Color.Black)
     ) {
         TexturePlayerView(
             exoPlayer = exoPlayer,
@@ -170,7 +173,7 @@ fun ShortVideoPlayer(
                 Icon(
                     imageVector = Icons.Default.Favorite,
                     contentDescription = null,
-                    tint = Color.Red, // LOCKED TO RED
+                    tint = Color.Red,
                     modifier = Modifier
                         .offset {
                             IntOffset(
@@ -192,7 +195,8 @@ fun ShortVideoPlayer(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(bottom = 90.dp)
+                // FIX: Dynamic padding + 90.dp for app menu
+                .padding(bottom = navBarHeight + 90.dp)
                 .fillMaxWidth()
                 .height(barHeight)
                 .background(Color.White.copy(alpha = 0.2f))
@@ -211,7 +215,8 @@ fun ShortVideoPlayer(
             exit = fadeOut() + slideOutVertically { it / 2 },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 110.dp)
+                // FIX: Dynamic padding + 110.dp so it hovers over the scrubber
+                .padding(bottom = navBarHeight + 110.dp)
         ) {
             Text(
                 text = formatTime((progress * exoPlayer.duration).toLong()),

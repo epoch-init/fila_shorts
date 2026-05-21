@@ -27,6 +27,9 @@ fun VideoInteractionOverlay(
     onToggleFavorite: () -> Unit,
     onAccountSelected: (String) -> Unit
 ) {
+    // FIX: Get dynamic system navigation bar height
+    val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -43,7 +46,8 @@ fun VideoInteractionOverlay(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(start = 16.dp, end = 8.dp, bottom = 90.dp)
+                // FIX: Dynamic padding + 90.dp to clear both system buttons and app menu
+                .padding(start = 16.dp, end = 8.dp, bottom = navBarHeight + 90.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.Bottom
         ) {
@@ -109,7 +113,7 @@ fun VideoInteractionOverlay(
                         Icon(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Favorite",
-                            tint = if (isFavorite) Color.Red else Color.White, // LOCKED TO RED
+                            tint = if (isFavorite) Color.Red else Color.White,
                             modifier = Modifier.size(36.dp)
                         )
                     }
