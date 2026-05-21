@@ -22,16 +22,22 @@ import zeki.productions.shorts.ui.components.SearchResultItem
 fun SearchScreen(
     videos: List<VideoEntity>,
     onVideoSelected: (String) -> Unit,
-    onAccountSelected: (String) -> Unit // New callback for Profiles
+    onAccountSelected: (String) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
 
     val filteredVideos = remember(query, videos) {
-        if (query.isBlank()) videos.shuffled() // Show random discovery grid if empty
-        else videos.filter {
-            it.description.contains(query, ignoreCase = true) ||
-                    it.accountName.contains(query, ignoreCase = true) ||
-                    it.categories.contains(query, ignoreCase = true)
+        if (query.isBlank()) {
+            // Show random discovery grid if empty
+            videos.shuffled()
+        } else {
+            // FIX: Added `it.id` so users can search by the exact filename
+            videos.filter {
+                it.description.contains(query, ignoreCase = true) ||
+                        it.accountName.contains(query, ignoreCase = true) ||
+                        it.categories.contains(query, ignoreCase = true) ||
+                        it.id.contains(query, ignoreCase = true)
+            }
         }
     }
 
@@ -59,7 +65,7 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp)),
-                placeholder = { Text("Search accounts, tags, or content...", color = Color.Gray) },
+                placeholder = { Text("Search by filename, accounts, tags...", color = Color.Gray) },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
@@ -91,7 +97,7 @@ fun SearchScreen(
             item(span = StaggeredGridItemSpan.FullLine) {
                 SectionHeader(if (query.isBlank()) "Explore" else "Videos")
             }
-            items(filteredVideos) { video ->
+            items(filteredVideos, key = { it.id }) { video ->
                 // Adding a random height multiplier to create the Masonry look
                 val aspect = remember(video.id) { listOf(0.8f, 1.2f, 1.5f).random() }
                 Box(modifier = Modifier.aspectRatio(1f / aspect)) {
