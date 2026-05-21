@@ -1,6 +1,7 @@
 package zeki.productions.shorts.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -22,8 +23,9 @@ import zeki.productions.shorts.data.VideoEntity
 @Composable
 fun VideoInteractionOverlay(
     video: VideoEntity,
-    isFavorite: Boolean, // FIX: Injected Optimistic State
-    onToggleFavorite: () -> Unit
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onAccountSelected: (String) -> Unit // FIX: Added parameter
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -55,9 +57,12 @@ fun VideoInteractionOverlay(
                     color = Color.White,
                     fontWeight = FontWeight.Black,
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.shadow(2.dp)
+                    modifier = Modifier
+                        .shadow(2.dp)
+                        .clickable { onAccountSelected(video.accountName) } // FIX: Tap to open profile!
+                        .padding(vertical = 4.dp) // Added slight padding to make touch target larger
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = video.description,
                     color = Color.White.copy(alpha = 0.9f),

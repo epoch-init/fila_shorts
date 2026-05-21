@@ -21,6 +21,7 @@ import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.ui.components.CategoryBar
 import zeki.productions.shorts.ui.navigation.BottomNavItem
 import zeki.productions.shorts.ui.screens.AboutScreen
+import zeki.productions.shorts.ui.screens.ProfileScreen
 import zeki.productions.shorts.ui.screens.SearchScreen
 import zeki.productions.shorts.ui.screens.SettingsScreen
 
@@ -145,12 +146,14 @@ fun MainScreen(
                                 liveDb.videoDao().incrementViewCount(id)
                             }
                         },
-                        // FIX: Trust the exact updatedVideo state passed from the player
                         onToggleFavorite = { updatedVideo ->
                             scope.launch(Dispatchers.IO) {
                                 liveDb.videoDao().updateVideo(updatedVideo)
                                 onRefreshStable()
                             }
+                        },
+                        onAccountSelected = { accountName ->
+                            navController.navigate("profile/$accountName")
                         }
                     )
 
@@ -159,15 +162,43 @@ fun MainScreen(
                     }
                 }
             }
+
             composable(BottomNavItem.Search.route) {
                 Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                    SearchScreen(videos) { videoId ->
-                        navController.navigate(BottomNavItem.Home.route + "?videoId=$videoId") {
-                            popUpTo(BottomNavItem.Home.route) { inclusive = true }
+                    SearchScreen(
+                        videos = videos,
+                        onVideoSelected = { videoId ->
+                            navController.navigate(BottomNavItem.Home.route + "?videoId=$videoId") {
+                                popUpTo(BottomNavItem.Home.route) { inclusive = true }
+                            }
+                        },
+                        onAccountSelected = { accountName ->
+                            navController.navigate("profile/$accountName")
                         }
-                    }
+                    )
                 }
             }
+
+            // New Profile Route
+            composable(
+                route = "profile/{accountName}",
+                arguments = listOf(navArgument("accountName") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
+                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                    ProfileScreen(
+                        accountName = accountName,
+                        allVideos = videos,
+                        onBack = { navController.popBackStack() },
+                        onVideoSelected = { videoId ->
+                            navController.navigate(BottomNavItem.Home.route + "?videoId=$videoId") {
+                                popUpTo(BottomNavItem.Home.route) { inclusive = true }
+                            }
+                        }
+                    )
+                }
+            }
+
             composable("about") {
                 AboutScreen(onBack = { navController.popBackStack() })
             }

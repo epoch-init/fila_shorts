@@ -24,7 +24,8 @@ fun FeedScreen(
     videos: List<VideoEntity>,
     initialVideoId: String? = null,
     onVideoSeen: (String) -> Unit,
-    onToggleFavorite: (VideoEntity) -> Unit
+    onToggleFavorite: (VideoEntity) -> Unit,
+    onAccountSelected: (String) -> Unit // FIX: Added parameter
 ) {
     if (videos.isEmpty()) {
         VoidState()
@@ -68,7 +69,6 @@ fun FeedScreen(
         }
     }
 
-    // FIX: Only trigger window updates when the active video ID actually changes
     val activeVideoId = if (videos.isNotEmpty() && pagerState.currentPage < videos.size) {
         videos[pagerState.currentPage].id
     } else null
@@ -85,7 +85,6 @@ fun FeedScreen(
 
         playerPool.updateWindow(window, activeVideoId, isAppForeground)
 
-        // Prevents falsely counting likes/unlikes as new views
         if (isAppForeground) onVideoSeen(activeVideoId)
     }
 
@@ -111,7 +110,8 @@ fun FeedScreen(
                         exoPlayer = player,
                         isActive = pagerState.currentPage == page && isAppForeground,
                         onToggleFavorite = onToggleFavorite,
-                        onScrubbingStateChanged = { isPagerLocked = it }
+                        onScrubbingStateChanged = { isPagerLocked = it },
+                        onAccountSelected = onAccountSelected // FIX: Pass down
                     )
                 } else {
                     Box(Modifier

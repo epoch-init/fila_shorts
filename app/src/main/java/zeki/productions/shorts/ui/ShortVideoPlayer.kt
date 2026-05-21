@@ -46,14 +46,14 @@ fun ShortVideoPlayer(
     exoPlayer: ExoPlayer,
     isActive: Boolean,
     onToggleFavorite: (VideoEntity) -> Unit,
-    onScrubbingStateChanged: (Boolean) -> Unit
+    onScrubbingStateChanged: (Boolean) -> Unit,
+    onAccountSelected: (String) -> Unit // FIX: Added parameter
 ) {
     val context = LocalContext.current
     var isPausedByUser by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     var isScrubbing by remember { mutableStateOf(false) }
 
-    // FIX: Optimistic State for instant UI response
     var localIsFavorite by remember(video.id) { mutableStateOf(video.isFavorite) }
     var lastDoubleTap by remember { mutableStateOf<TapEvent?>(null) }
 
@@ -89,16 +89,14 @@ fun ShortVideoPlayer(
             .pointerInput(video.id) {
                 detectTapGestures(
                     onTap = {
-                        HapticManager.tick(context) // Makes mashing feel responsive
+                        HapticManager.tick(context)
                         isPausedByUser = !isPausedByUser
                     },
                     onDoubleTap = { offset ->
                         HapticManager.tick(context)
-                        // Only trigger heart animation if we are FAVORITING, not unfavoriting.
                         if (!localIsFavorite) {
                             lastDoubleTap = TapEvent(offset, System.currentTimeMillis())
                         }
-                        // Instantly toggle local state and push accurate state to DB
                         localIsFavorite = !localIsFavorite
                         onToggleFavorite(video.copy(isFavorite = localIsFavorite))
                     }
@@ -123,14 +121,14 @@ fun ShortVideoPlayer(
             }
         )
 
-        // Pass optimistic state down to overlay
         VideoInteractionOverlay(
             video = video,
             isFavorite = localIsFavorite,
             onToggleFavorite = {
                 localIsFavorite = !localIsFavorite
                 onToggleFavorite(video.copy(isFavorite = localIsFavorite))
-            }
+            },
+            onAccountSelected = onAccountSelected // FIX: Pass down
         )
 
         AnimatedVisibility(
@@ -155,7 +153,6 @@ fun ShortVideoPlayer(
             }
         }
 
-        // FIX: Hexagon Artifact removed using graphicsLayer
         lastDoubleTap?.let { tap ->
             key(tap.time) {
                 val alpha = remember { Animatable(1f) }

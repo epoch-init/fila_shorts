@@ -1,14 +1,17 @@
 package zeki.productions.shorts.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.staggeredgrid.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,15 +21,17 @@ import zeki.productions.shorts.ui.components.SearchResultItem
 @Composable
 fun SearchScreen(
     videos: List<VideoEntity>,
-    onVideoSelected: (String) -> Unit
+    onVideoSelected: (String) -> Unit,
+    onAccountSelected: (String) -> Unit // New callback for Profiles
 ) {
     var query by remember { mutableStateOf("") }
 
     val filteredVideos = remember(query, videos) {
-        if (query.isBlank()) emptyList()
+        if (query.isBlank()) videos.shuffled() // Show random discovery grid if empty
         else videos.filter {
             it.description.contains(query, ignoreCase = true) ||
-                    it.accountName.contains(query, ignoreCase = true)
+                    it.accountName.contains(query, ignoreCase = true) ||
+                    it.categories.contains(query, ignoreCase = true)
         }
     }
 
@@ -37,51 +42,59 @@ fun SearchScreen(
             .map { it.key to it.value.size }
     }
 
-    val hashtags = remember(query, videos) {
-        if (query.isBlank()) emptyList()
-        else videos.flatMap { it.categories.split(",") }
-            .filter { it.contains(query, ignoreCase = true) && it.isNotBlank() }
-            .groupBy { it }
-            .map { it.key to it.value.size }
-    }
-
-    Column(modifier = Modifier.fillMaxSize().background(Color.Black).statusBarsPadding()) {
-        TextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            placeholder = { Text("Search accounts, tags, or content...") },
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                unfocusedContainerColor = Color(0xFF1A0000),
-                focusedContainerColor = Color(0xFF2A0000),
-                cursorColor = Color.Red,
-                focusedIndicatorColor = Color.Red
-            )
-        )
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(8.dp)
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .background(Color.Black)) {
+        // Sticky Frosted Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.8f))
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
+            TextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp)),
+                placeholder = { Text("Search accounts, tags, or content...", color = Color.Gray) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    unfocusedContainerColor = Color(0xFF1A1A1A),
+                    focusedContainerColor = Color(0xFF2A2A2A),
+                    cursorColor = Color(0xFF8B0000),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
+            )
+        }
+
+        LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalItemSpacing = 8.dp
+        ) {
+            // Accounts Section (If searching)
             if (accounts.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("Accounts") }
-                items(accounts, span = { GridItemSpan(maxLineSpan) }) { (name, count) ->
-                    AccountListItem(name, count)
+                item(span = StaggeredGridItemSpan.FullLine) { SectionHeader("Accounts") }
+                items(accounts) { (name, count) ->
+                    AccountPillCard(name, count) { onAccountSelected(name) }
                 }
             }
 
-            if (hashtags.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("Hashtags") }
-                items(hashtags, span = { GridItemSpan(maxLineSpan) }) { (tag, count) ->
-                    HashtagListItem(tag, count)
-                }
+            // Videos Section
+            item(span = StaggeredGridItemSpan.FullLine) {
+                SectionHeader(if (query.isBlank()) "Explore" else "Videos")
             }
-
-            if (filteredVideos.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("Video Results") }
-                items(filteredVideos) { video ->
+            items(filteredVideos) { video ->
+                // Adding a random height multiplier to create the Masonry look
+                val aspect = remember(video.id) { listOf(0.8f, 1.2f, 1.5f).random() }
+                Box(modifier = Modifier.aspectRatio(1f / aspect)) {
                     SearchResultItem(video = video, onClick = { onVideoSelected(video.id) })
                 }
             }
@@ -93,27 +106,44 @@ fun SearchScreen(
 private fun SectionHeader(title: String) {
     Text(
         text = title.uppercase(),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp, start = 8.dp),
+        style = MaterialTheme.typography.titleMedium,
+        color = Color.White,
+        modifier = Modifier.padding(top = 24.dp, bottom = 12.dp, start = 8.dp),
         fontWeight = FontWeight.Black
     )
 }
 
 @Composable
-private fun AccountListItem(name: String, count: Int) {
-    ListItem(
-        headlineContent = { Text("@$name", color = Color.White, fontWeight = FontWeight.Bold) },
-        supportingContent = { Text("$count videos", color = Color.Gray) },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    )
-}
-
-@Composable
-private fun HashtagListItem(tag: String, count: Int) {
-    ListItem(
-        headlineContent = { Text("#$tag", color = Color.White) },
-        supportingContent = { Text("$count videos", color = Color.Gray) },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    )
+private fun AccountPillCard(name: String, count: Int, onClick: () -> Unit) {
+    Surface(
+        color = Color(0xFF1A1A1A),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF8B0000)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("@$name", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    "$count videos",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+    }
 }
