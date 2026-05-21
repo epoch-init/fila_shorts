@@ -25,7 +25,7 @@ fun VideoInteractionOverlay(
     video: VideoEntity,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
-    onAccountSelected: (String) -> Unit // FIX: Added parameter
+    onAccountSelected: (String) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -59,8 +59,8 @@ fun VideoInteractionOverlay(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier
                         .shadow(2.dp)
-                        .clickable { onAccountSelected(video.accountName) } // FIX: Tap to open profile!
-                        .padding(vertical = 4.dp) // Added slight padding to make touch target larger
+                        .clickable { onAccountSelected(video.accountName) }
+                        .padding(vertical = 4.dp)
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -87,7 +87,7 @@ fun VideoInteractionOverlay(
                             Icon(
                                 imageVector = Icons.Rounded.CheckCircle,
                                 contentDescription = "Seen",
-                                tint = Color(0xFF8B0000),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(8.dp)
                             )
                         }
@@ -109,7 +109,7 @@ fun VideoInteractionOverlay(
                         Icon(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Favorite",
-                            tint = if (isFavorite) Color.Red else Color.White,
+                            tint = if (isFavorite) Color.Red else Color.White, // LOCKED TO RED
                             modifier = Modifier.size(36.dp)
                         )
                     }

@@ -17,17 +17,17 @@ import zeki.productions.shorts.logic.VideoCacheManager
 import zeki.productions.shorts.ui.MainScreen
 import zeki.productions.shorts.ui.screens.PermissionRequestScreen
 import zeki.productions.shorts.ui.theme.ShortsTheme
+import zeki.productions.shorts.ui.theme.ThemeManager
 import java.io.File
 
 class MainActivity : ComponentActivity() {
     private var liveDb: ShortsDatabase? = null
     private var stableDbState = mutableStateOf<ShortsDatabase?>(null)
     private lateinit var permissionManager: PermissionManager
-    private val TAG = "GEMINI_DEBUG"
     private var syncManager: SyncManager? = null
+    lateinit var themeManager: ThemeManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Edge-to-Edge & Security Sterilization
         enableEdgeToEdge()
         window.setFlags(
             WindowManager.LayoutParams.FLAG_SECURE,
@@ -36,18 +36,19 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
-        // Ensure cache is completely clean from previous sessions
         VideoCacheManager.sterilize(this)
-
         liveDb = DatabaseBridge.getLiveDb(this)
         permissionManager = PermissionManager(this)
+        themeManager = ThemeManager(applicationContext)
 
         syncManager = SyncManager(this, liveDb!!) { freshStable ->
             stableDbState.value = freshStable
         }
 
         setContent {
-            ShortsTheme {
+            val currentTheme by themeManager.currentTheme.collectAsState()
+
+            ShortsTheme(theme = currentTheme) {
                 var isAccessGranted by remember { mutableStateOf(permissionManager.isFullyGranted()) }
                 val stableDb by stableDbState
 
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         liveDb = liveDb!!,
                         stableDb = stableDb,
+                        themeManager = themeManager, // Passed to MainScreen
                         onRefreshStable = {
                             val fresh = DatabaseBridge.getStableDb(this@MainActivity, liveDb!!)
                             stableDbState.value = fresh
@@ -104,7 +106,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         syncManager?.cancel()
-        // Wipe secure cache to prevent data exposure
         VideoCacheManager.sterilize(this)
         super.onDestroy()
     }

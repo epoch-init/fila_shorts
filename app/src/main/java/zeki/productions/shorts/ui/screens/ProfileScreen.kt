@@ -36,23 +36,25 @@ fun ProfileScreen(
 
     Column(modifier = Modifier
         .fillMaxSize()
-        .background(Color.Black)) {
-        // App Bar
+        .background(MaterialTheme.colorScheme.background)) {
         Box(modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()) {
             IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart)) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
             }
             Text(
                 text = accountName.uppercase(),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.align(Alignment.Center)
             )
         }
 
-        // Profile Header
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -65,7 +67,10 @@ fun ProfileScreen(
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(Color(0xFF8B0000), Color(0xFF4A0000))
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary
+                            )
                         )
                     ),
                 contentAlignment = Alignment.Center
@@ -78,7 +83,11 @@ fun ProfileScreen(
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("@$accountName", color = Color.White, style = MaterialTheme.typography.titleMedium)
+            Text(
+                "@$accountName",
+                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.titleMedium
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
             Row(
@@ -91,9 +100,8 @@ fun ProfileScreen(
             }
         }
 
-        Divider(color = Color.DarkGray, thickness = 1.dp)
+        Divider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
 
-        // Video Grid
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
@@ -111,7 +119,7 @@ private fun StatColumn(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleLarge
         )

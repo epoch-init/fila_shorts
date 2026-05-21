@@ -34,16 +34,15 @@ data class CreatorStats(
 fun CreatorsScreen(
     allVideos: List<VideoEntity>,
     onAccountSelected: (String) -> Unit,
-    onVideoSelected: (String, String) -> Unit // accountName, videoId
+    onVideoSelected: (String, String) -> Unit
 ) {
-    // Group, calculate stats, and sort by most viewed
     val roster = remember(allVideos) {
         allVideos.groupBy { it.accountName }
             .map { (name, videos) ->
                 CreatorStats(
                     accountName = name,
                     totalViews = videos.sumOf { it.viewedCount },
-                    videos = videos.sortedByDescending { it.viewedCount } // Show best videos first
+                    videos = videos.sortedByDescending { it.viewedCount }
                 )
             }
             .sortedByDescending { it.totalViews }
@@ -51,19 +50,18 @@ fun CreatorsScreen(
 
     Column(modifier = Modifier
         .fillMaxSize()
-        .background(Color.Black)) {
+        .background(MaterialTheme.colorScheme.background)) {
 
-        // Sticky Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.9f))
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.9f))
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             Text(
                 text = "THE ROSTER",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Black
             )
@@ -93,13 +91,12 @@ private fun CreatorCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0000)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF8B0000).copy(alpha = 0.3f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
     ) {
         Column(modifier = Modifier.padding(vertical = 16.dp)) {
 
-            // Header: Avatar & Stats
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -107,13 +104,17 @@ private fun CreatorCard(
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Gradient Avatar
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.linearGradient(listOf(Color(0xFF8B0000), Color(0xFF4A0000)))
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary
+                                )
+                            )
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -127,11 +128,10 @@ private fun CreatorCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Name & Stats
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "@${creator.accountName}",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -142,27 +142,24 @@ private fun CreatorCard(
                     )
                 }
 
-                // View Profile Arrow
                 Icon(
                     imageVector = Icons.Default.ArrowForward,
                     contentDescription = "View Profile",
-                    tint = Color(0xFF8B0000)
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Horizontal Video Preview Strip
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Show up to 10 videos as a preview to save memory
                 items(creator.videos.take(10), key = { it.id }) { video ->
                     Box(
                         modifier = Modifier
-                            .width(100.dp) // Fixed width for horizontal scrolling
+                            .width(100.dp)
                             .clip(RoundedCornerShape(8.dp))
                     ) {
                         SearchResultItem(

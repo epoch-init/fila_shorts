@@ -32,8 +32,7 @@ fun FavoritesListScreen(
 
     Column(modifier = Modifier
         .fillMaxSize()
-        .background(Color.Black)) {
-        // App Bar
+        .background(MaterialTheme.colorScheme.background)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -41,11 +40,15 @@ fun FavoritesListScreen(
                 .padding(vertical = 12.dp)
         ) {
             IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart)) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
             }
             Text(
                 text = "LIKED VIDEOS",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Black,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.align(Alignment.Center)
@@ -53,7 +56,6 @@ fun FavoritesListScreen(
         }
 
         if (favoriteVideos.isEmpty()) {
-            // Empty State
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
@@ -73,7 +75,6 @@ fun FavoritesListScreen(
                 }
             }
         } else {
-            // Stats Header
             Text(
                 text = "${favoriteVideos.size} saved clips",
                 color = Color.Gray,
@@ -81,9 +82,8 @@ fun FavoritesListScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
-            Divider(color = Color(0xFF1A1A1A), thickness = 1.dp)
+            Divider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
 
-            // Grid
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize(),

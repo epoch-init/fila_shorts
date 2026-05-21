@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,10 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/**
- * World-Class Floating Category Bar.
- * Translucent glassmorphism pills floating over the video feed.
- */
 @Composable
 fun CategoryBar(
     categories: List<String>,
@@ -38,13 +33,12 @@ fun CategoryBar(
     ) {
         items(categories) { category ->
             val isSelected = category == selectedCategory
-            val oxblood = Color(0xFF8B0000)
 
             Box(
                 modifier = Modifier
                     .clip(CircleShape)
                     .background(
-                        if (isSelected) oxblood.copy(alpha = 0.9f)
+                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
                         else Color.Black.copy(alpha = 0.4f)
                     )
                     .clickable { onCategorySelected(category) }

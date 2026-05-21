@@ -47,7 +47,7 @@ fun ShortVideoPlayer(
     isActive: Boolean,
     onToggleFavorite: (VideoEntity) -> Unit,
     onScrubbingStateChanged: (Boolean) -> Unit,
-    onAccountSelected: (String) -> Unit // FIX: Added parameter
+    onAccountSelected: (String) -> Unit
 ) {
     val context = LocalContext.current
     var isPausedByUser by remember { mutableStateOf(false) }
@@ -77,7 +77,7 @@ fun ShortVideoPlayer(
         modifier = Modifier
             .fillMaxSize()
             .clipToBounds()
-            .background(Color.Black)
+            .background(Color.Black) // Video background stays black to hide letterboxing
     ) {
         TexturePlayerView(
             exoPlayer = exoPlayer,
@@ -128,7 +128,7 @@ fun ShortVideoPlayer(
                 localIsFavorite = !localIsFavorite
                 onToggleFavorite(video.copy(isFavorite = localIsFavorite))
             },
-            onAccountSelected = onAccountSelected // FIX: Pass down
+            onAccountSelected = onAccountSelected
         )
 
         AnimatedVisibility(
@@ -170,7 +170,7 @@ fun ShortVideoPlayer(
                 Icon(
                     imageVector = Icons.Default.Favorite,
                     contentDescription = null,
-                    tint = Color(0xFF8B0000),
+                    tint = Color.Red, // LOCKED TO RED
                     modifier = Modifier
                         .offset {
                             IntOffset(
@@ -201,7 +201,7 @@ fun ShortVideoPlayer(
                 modifier = Modifier
                     .fillMaxWidth(progress)
                     .fillMaxHeight()
-                    .background(Color(0xFF8B0000))
+                    .background(MaterialTheme.colorScheme.primary)
             )
         }
 

@@ -28,10 +28,8 @@ fun SearchScreen(
 
     val filteredVideos = remember(query, videos) {
         if (query.isBlank()) {
-            // Show random discovery grid if empty
             videos.shuffled()
         } else {
-            // FIX: Added `it.id` so users can search by the exact filename
             videos.filter {
                 it.description.contains(query, ignoreCase = true) ||
                         it.accountName.contains(query, ignoreCase = true) ||
@@ -50,12 +48,11 @@ fun SearchScreen(
 
     Column(modifier = Modifier
         .fillMaxSize()
-        .background(Color.Black)) {
-        // Sticky Frosted Header
+        .background(MaterialTheme.colorScheme.background)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.8f))
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.9f))
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
@@ -69,11 +66,13 @@ fun SearchScreen(
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
-                    unfocusedContainerColor = Color(0xFF1A1A1A),
-                    focusedContainerColor = Color(0xFF2A2A2A),
-                    cursorColor = Color(0xFF8B0000),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    cursorColor = MaterialTheme.colorScheme.primary,
                     focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -85,7 +84,6 @@ fun SearchScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalItemSpacing = 8.dp
         ) {
-            // Accounts Section (If searching)
             if (accounts.isNotEmpty()) {
                 item(span = StaggeredGridItemSpan.FullLine) { SectionHeader("Accounts") }
                 items(accounts) { (name, count) ->
@@ -93,12 +91,10 @@ fun SearchScreen(
                 }
             }
 
-            // Videos Section
             item(span = StaggeredGridItemSpan.FullLine) {
                 SectionHeader(if (query.isBlank()) "Explore" else "Videos")
             }
             items(filteredVideos, key = { it.id }) { video ->
-                // Adding a random height multiplier to create the Masonry look
                 val aspect = remember(video.id) { listOf(0.8f, 1.2f, 1.5f).random() }
                 Box(modifier = Modifier.aspectRatio(1f / aspect)) {
                     SearchResultItem(video = video, onClick = { onVideoSelected(video.id) })
@@ -113,7 +109,7 @@ private fun SectionHeader(title: String) {
     Text(
         text = title.uppercase(),
         style = MaterialTheme.typography.titleMedium,
-        color = Color.White,
+        color = MaterialTheme.colorScheme.onBackground,
         modifier = Modifier.padding(top = 24.dp, bottom = 12.dp, start = 8.dp),
         fontWeight = FontWeight.Black
     )
@@ -122,7 +118,7 @@ private fun SectionHeader(title: String) {
 @Composable
 private fun AccountPillCard(name: String, count: Int, onClick: () -> Unit) {
     Surface(
-        color = Color(0xFF1A1A1A),
+        color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -136,14 +132,18 @@ private fun AccountPillCard(name: String, count: Int, onClick: () -> Unit) {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF8B0000)),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
                 Text(name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text("@$name", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    "@$name",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
                 Text(
                     "$count videos",
                     color = Color.Gray,

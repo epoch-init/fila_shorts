@@ -28,12 +28,14 @@ import zeki.productions.shorts.ui.screens.FavoritesListScreen
 import zeki.productions.shorts.ui.screens.ProfileScreen
 import zeki.productions.shorts.ui.screens.SearchScreen
 import zeki.productions.shorts.ui.screens.SettingsScreen
+import zeki.productions.shorts.ui.theme.ThemeManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     liveDb: ShortsDatabase,
     stableDb: ShortsDatabase?,
+    themeManager: ThemeManager,
     onRefreshStable: suspend () -> Unit,
     onDeletePhysical: suspend () -> Unit
 ) {
@@ -75,12 +77,35 @@ fun MainScreen(
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentDestination = navBackStackEntry?.destination
+            val currentRoute = currentDestination?.route ?: ""
+
+            // Context-Aware UI Logic: Is the user currently watching a full-screen video feed?
+            val isVideoFeed = currentRoute.startsWith(BottomNavItem.Home.route) ||
+                    currentRoute.startsWith("profile_feed") ||
+                    currentRoute.startsWith("favorites_feed")
+
+            // Over video: Cinematic Black. Over normal screens: Dynamic Theme Background.
+            val bottomNavGradientColor = if (isVideoFeed) {
+                Color.Black.copy(alpha = 0.95f)
+            } else {
+                MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
+            }
+
+            // Adjust unselected icons for contrast
+            val unselectedTint = if (isVideoFeed) {
+                Color.White.copy(alpha = 0.6f)
+            } else {
+                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))
+                            colors = listOf(Color.Transparent, bottomNavGradientColor)
                         )
                     )
             ) {
@@ -89,10 +114,6 @@ fun MainScreen(
                     tonalElevation = 0.dp,
                     windowInsets = WindowInsets.navigationBars
                 ) {
-                    val navBackStackEntry by navController.currentBackStackEntryAsState()
-                    val currentDestination = navBackStackEntry?.destination
-
-                    // FIX: Added Creators to the bottom nav array
                     val items = listOf(
                         BottomNavItem.Home,
                         BottomNavItem.Creators,
@@ -123,10 +144,10 @@ fun MainScreen(
                                 }
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.White,
-                                unselectedIconColor = Color.Gray,
-                                selectedTextColor = Color.White,
-                                unselectedTextColor = Color.Gray,
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = unselectedTint,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedTextColor = unselectedTint,
                                 indicatorColor = Color.Transparent
                             )
                         )
@@ -138,10 +159,11 @@ fun MainScreen(
         NavHost(
             navController,
             startDestination = BottomNavItem.Home.route,
-            Modifier.fillMaxSize()
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
         ) {
 
-            // 1. MAIN HOME FEED
             composable(
                 route = BottomNavItem.Home.route + "?videoId={videoId}",
                 arguments = listOf(navArgument("videoId") {
@@ -175,7 +197,6 @@ fun MainScreen(
                 }
             }
 
-            // 2. CREATORS (ROSTER) SCREEN
             composable(BottomNavItem.Creators.route) {
                 Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                     CreatorsScreen(
@@ -184,14 +205,12 @@ fun MainScreen(
                             navController.navigate("profile/$accountName")
                         },
                         onVideoSelected = { accountName, videoId ->
-                            // Jump straight to the specific profile feed
                             navController.navigate("profile_feed/$accountName?videoId=$videoId")
                         }
                     )
                 }
             }
 
-            // 3. SEARCH SCREEN
             composable(BottomNavItem.Search.route) {
                 Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                     SearchScreen(
@@ -208,7 +227,6 @@ fun MainScreen(
                 }
             }
 
-            // 4. PROFILE SCREEN
             composable(
                 route = "profile/{accountName}",
                 arguments = listOf(navArgument("accountName") { type = NavType.StringType })
@@ -226,7 +244,6 @@ fun MainScreen(
                 }
             }
 
-            // 5. PROFILE VIDEO FEED
             composable(
                 route = "profile_feed/{accountName}?videoId={videoId}",
                 arguments = listOf(
@@ -276,7 +293,6 @@ fun MainScreen(
                 }
             }
 
-            // 6. FAVORITES LIST SCREEN
             composable("favorites_list") {
                 Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                     FavoritesListScreen(
@@ -289,7 +305,6 @@ fun MainScreen(
                 }
             }
 
-            // 7. FAVORITES VIDEO FEED
             composable(
                 route = "favorites_feed?videoId={videoId}",
                 arguments = listOf(navArgument("videoId") {
@@ -339,7 +354,6 @@ fun MainScreen(
                 }
             }
 
-            // 8. ABOUT SCREEN
             composable("about") {
                 AboutScreen(onBack = { navController.popBackStack() })
             }
@@ -349,11 +363,12 @@ fun MainScreen(
             ModalBottomSheet(
                 onDismissRequest = { showSettingsSheet = false },
                 sheetState = sheetState,
-                containerColor = Color(0xFF0A0000),
+                containerColor = MaterialTheme.colorScheme.surface,
                 dragHandle = { BottomSheetDefaults.DragHandle(color = Color.DarkGray) }
             ) {
                 SettingsScreen(
                     videoCount = videos.size,
+                    themeManager = themeManager,
                     onDeleteSeen = {
                         scope.launch(Dispatchers.IO) {
                             onDeletePhysical()
