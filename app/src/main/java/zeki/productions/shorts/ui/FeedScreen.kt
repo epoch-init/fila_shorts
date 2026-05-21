@@ -1,19 +1,33 @@
 package zeki.productions.shorts.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.logic.ExoPlayerPool
 import zeki.productions.shorts.ui.components.VoidState
@@ -25,7 +39,7 @@ fun FeedScreen(
     initialVideoId: String? = null,
     onVideoSeen: (String) -> Unit,
     onToggleFavorite: (VideoEntity) -> Unit,
-    onAccountSelected: (String) -> Unit // FIX: Added parameter
+    onAccountSelected: (String) -> Unit
 ) {
     if (videos.isEmpty()) {
         VoidState()
@@ -33,12 +47,16 @@ fun FeedScreen(
     }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val playerPool = remember { ExoPlayerPool(context) }
     val pagerState = rememberPagerState(pageCount = { videos.size })
     var isPagerLocked by remember { mutableStateOf(false) }
 
     var isAppForeground by remember { mutableStateOf(true) }
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // State for our Custom "End of Feed" Toast
+    var showEndToast by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -88,36 +106,91 @@ fun FeedScreen(
         if (isAppForeground) onVideoSeen(activeVideoId)
     }
 
-    VerticalPager(
-        state = pagerState,
+    // FIX: NestedScrollConnection exactly detects when the user swipes past the bounds
+    val overscrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                // available.y < 0 means the user is dragging their finger UP (trying to scroll down the list).
+                // If there's unconsumed negative Y and we are on the very last video, they hit the bottom!
+                if (available.y < 0f && pagerState.currentPage == videos.size - 1) {
+                    if (!showEndToast) {
+                        showEndToast = true
+                        scope.launch {
+                            delay(2500) // Show toast for 2.5 seconds
+                            showEndToast = false
+                        }
+                    }
+                }
+                return super.onPostScroll(consumed, available, source)
+            }
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clipToBounds(),
-        key = { index -> if (index < videos.size) videos[index].id else index },
-        userScrollEnabled = !isPagerLocked
-    ) { page ->
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .clipToBounds()) {
-            if (page < videos.size) {
-                val video = videos[page]
-                val player = playerPool.activePlayers[video.id]
+            .clipToBounds()
+            .nestedScroll(overscrollConnection) // Attach the scroll detector here
+    ) {
 
-                if (player != null) {
-                    ShortVideoPlayer(
-                        video = video,
-                        exoPlayer = player,
-                        isActive = pagerState.currentPage == page && isAppForeground,
-                        onToggleFavorite = onToggleFavorite,
-                        onScrubbingStateChanged = { isPagerLocked = it },
-                        onAccountSelected = onAccountSelected // FIX: Pass down
-                    )
-                } else {
-                    Box(Modifier
-                        .fillMaxSize()
-                        .background(Color.Black))
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            key = { index -> if (index < videos.size) videos[index].id else index },
+            userScrollEnabled = !isPagerLocked
+        ) { page ->
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .clipToBounds()) {
+                if (page < videos.size) {
+                    val video = videos[page]
+                    val player = playerPool.activePlayers[video.id]
+
+                    if (player != null) {
+                        ShortVideoPlayer(
+                            video = video,
+                            exoPlayer = player,
+                            isActive = pagerState.currentPage == page && isAppForeground,
+                            onToggleFavorite = onToggleFavorite,
+                            onScrubbingStateChanged = { isPagerLocked = it },
+                            onAccountSelected = onAccountSelected
+                        )
+                    } else {
+                        Box(Modifier
+                            .fillMaxSize()
+                            .background(Color.Black))
+                    }
                 }
+            }
+        }
+
+        // Custom "End of Feed" Cinematic Toast
+        AnimatedVisibility(
+            visible = showEndToast,
+            enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { -it },
+            exit = fadeOut(tween(500)) + slideOutVertically(tween(500)) { -it },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFF1A1A1A).copy(alpha = 0.95f))
+                    .padding(horizontal = 24.dp, vertical = 14.dp)
+            ) {
+                Text(
+                    text = "You've caught up! No more videos.",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
