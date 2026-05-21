@@ -23,6 +23,7 @@ import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.ui.components.CategoryBar
 import zeki.productions.shorts.ui.navigation.BottomNavItem
 import zeki.productions.shorts.ui.screens.AboutScreen
+import zeki.productions.shorts.ui.screens.CreatorsScreen
 import zeki.productions.shorts.ui.screens.FavoritesListScreen
 import zeki.productions.shorts.ui.screens.ProfileScreen
 import zeki.productions.shorts.ui.screens.SearchScreen
@@ -90,8 +91,14 @@ fun MainScreen(
                 ) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
-                    val items =
-                        listOf(BottomNavItem.Home, BottomNavItem.Search, BottomNavItem.Settings)
+
+                    // FIX: Added Creators to the bottom nav array
+                    val items = listOf(
+                        BottomNavItem.Home,
+                        BottomNavItem.Creators,
+                        BottomNavItem.Search,
+                        BottomNavItem.Settings
+                    )
 
                     items.forEach { item ->
                         NavigationBarItem(
@@ -168,7 +175,23 @@ fun MainScreen(
                 }
             }
 
-            // 2. SEARCH SCREEN
+            // 2. CREATORS (ROSTER) SCREEN
+            composable(BottomNavItem.Creators.route) {
+                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                    CreatorsScreen(
+                        allVideos = videos,
+                        onAccountSelected = { accountName ->
+                            navController.navigate("profile/$accountName")
+                        },
+                        onVideoSelected = { accountName, videoId ->
+                            // Jump straight to the specific profile feed
+                            navController.navigate("profile_feed/$accountName?videoId=$videoId")
+                        }
+                    )
+                }
+            }
+
+            // 3. SEARCH SCREEN
             composable(BottomNavItem.Search.route) {
                 Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                     SearchScreen(
@@ -185,7 +208,7 @@ fun MainScreen(
                 }
             }
 
-            // 3. PROFILE SCREEN
+            // 4. PROFILE SCREEN
             composable(
                 route = "profile/{accountName}",
                 arguments = listOf(navArgument("accountName") { type = NavType.StringType })
@@ -203,7 +226,7 @@ fun MainScreen(
                 }
             }
 
-            // 4. PROFILE VIDEO FEED
+            // 5. PROFILE VIDEO FEED
             composable(
                 route = "profile_feed/{accountName}?videoId={videoId}",
                 arguments = listOf(
@@ -253,7 +276,7 @@ fun MainScreen(
                 }
             }
 
-            // 5. FAVORITES LIST SCREEN
+            // 6. FAVORITES LIST SCREEN
             composable("favorites_list") {
                 Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                     FavoritesListScreen(
@@ -266,7 +289,7 @@ fun MainScreen(
                 }
             }
 
-            // 6. FAVORITES VIDEO FEED
+            // 7. FAVORITES VIDEO FEED
             composable(
                 route = "favorites_feed?videoId={videoId}",
                 arguments = listOf(navArgument("videoId") {
@@ -316,7 +339,7 @@ fun MainScreen(
                 }
             }
 
-            // 7. ABOUT SCREEN
+            // 8. ABOUT SCREEN
             composable("about") {
                 AboutScreen(onBack = { navController.popBackStack() })
             }
