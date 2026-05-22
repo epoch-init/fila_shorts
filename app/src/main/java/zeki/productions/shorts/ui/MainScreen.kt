@@ -1,7 +1,10 @@
 package zeki.productions.shorts.ui
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -10,7 +13,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -81,19 +87,16 @@ fun MainScreen(
             val currentDestination = navBackStackEntry?.destination
             val currentRoute = currentDestination?.route ?: ""
 
-            // Context-Aware UI Logic: Is the user currently watching a full-screen video feed?
             val isVideoFeed = currentRoute.startsWith(BottomNavItem.Home.route) ||
                     currentRoute.startsWith("profile_feed") ||
                     currentRoute.startsWith("favorites_feed")
 
-            // Over video: Cinematic Black. Over normal screens: Dynamic Theme Background.
             val bottomNavGradientColor = if (isVideoFeed) {
                 Color.Black.copy(alpha = 0.95f)
             } else {
                 MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
             }
 
-            // Adjust unselected icons for contrast
             val unselectedTint = if (isVideoFeed) {
                 Color.White.copy(alpha = 0.6f)
             } else {
@@ -136,10 +139,9 @@ fun MainScreen(
                                 } else {
                                     navController.navigate(item.route) {
                                         popUpTo(navController.graph.startDestinationId) {
-                                            saveState = true
+                                            inclusive = false
                                         }
                                         launchSingleTop = true
-                                        restoreState = true
                                     }
                                 }
                             },
@@ -157,13 +159,14 @@ fun MainScreen(
         }
     ) { innerPadding ->
         NavHost(
-            navController,
-            startDestination = BottomNavItem.Home.route,
+            navController = navController,
+            startDestination = BottomNavItem.Home.route + "?videoId={videoId}",
             Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
 
+            // 1. MAIN HOME FEED (With Exit Intercept)
             composable(
                 route = BottomNavItem.Home.route + "?videoId={videoId}",
                 arguments = listOf(navArgument("videoId") {
@@ -171,6 +174,65 @@ fun MainScreen(
                 })
             ) { backStackEntry ->
                 val targetId = backStackEntry.arguments?.getString("videoId")
+
+                // EXIT CONFIRMATION LOGIC
+                val context = LocalContext.current
+                var showExitDialog by remember { mutableStateOf(false) }
+
+                BackHandler {
+                    showExitDialog = true
+                }
+
+                if (showExitDialog) {
+                    Dialog(onDismissRequest = { showExitDialog = false }) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 8.dp
+                        ) {
+                            Column(modifier = Modifier.padding(24.dp)) {
+                                Text(
+                                    text = "Exit FILA Sports?",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    text = "Are you sure you want to close the app?",
+                                    color = Color.Gray,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(Modifier.height(32.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.End,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    TextButton(onClick = { showExitDialog = false }) {
+                                        Text(
+                                            "Cancel",
+                                            color = Color.Gray,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Button(
+                                        onClick = { (context as? Activity)?.finish() },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text(
+                                            "Exit",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     FeedScreen(
                         videos = filteredVideos,
@@ -217,7 +279,10 @@ fun MainScreen(
                         videos = videos,
                         onVideoSelected = { videoId ->
                             navController.navigate(BottomNavItem.Home.route + "?videoId=$videoId") {
-                                popUpTo(BottomNavItem.Home.route) { inclusive = true }
+                                popUpTo(navController.graph.startDestinationId) {
+                                    inclusive = false
+                                }
+                                launchSingleTop = true
                             }
                         },
                         onAccountSelected = { accountName ->
