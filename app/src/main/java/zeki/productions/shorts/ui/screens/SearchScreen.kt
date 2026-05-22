@@ -1,5 +1,11 @@
 package zeki.productions.shorts.ui.screens
 
+import android.os.Build
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
+import android.view.inputmethod.EditorInfo
+import android.widget.EditText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,8 +19,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.ui.components.SearchResultItem
 
@@ -56,24 +64,11 @@ fun SearchScreen(
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp)),
-                placeholder = { Text("Search by filename, accounts, tags...", color = Color.Gray) },
-                leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                )
+            // FIX: Replaced Compose TextField with Crash-Proof Native EditText wrapper
+            SafeSearchField(
+                query = query,
+                onQueryChange = { query = it },
+                modifier = Modifier.fillMaxWidth()
             )
         }
 
@@ -101,6 +96,90 @@ fun SearchScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * A perfectly stable Native Android EditText wrapped for Compose.
+ * Bypasses the Compose Semantics/IME R8 bug entirely.
+ */
+@Composable
+private fun SafeSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val hintColor = Color.Gray.toArgb()
+    val cursorTint = MaterialTheme.colorScheme.primary.toArgb()
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray)
+        Spacer(modifier = Modifier.width(12.dp))
+
+        AndroidView(
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
+            factory = { context ->
+                EditText(context).apply {
+                    this.hint = "Search by filename, accounts, tags..."
+                    this.setTextColor(textColor)
+                    this.setHintTextColor(hintColor)
+                    this.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                    this.setPadding(0, 0, 0, 0)
+                    this.textSize = 16f
+                    this.maxLines = 1
+                    this.inputType = InputType.TYPE_CLASS_TEXT
+                    this.imeOptions = EditorInfo.IME_ACTION_SEARCH
+
+                    // Safely apply theme cursor color for API 29+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        this.textCursorDrawable?.setTint(cursorTint)
+                    }
+
+                    addTextChangedListener(object : TextWatcher {
+                        override fun beforeTextChanged(
+                            s: CharSequence?,
+                            start: Int,
+                            count: Int,
+                            after: Int
+                        ) {
+                        }
+
+                        override fun onTextChanged(
+                            s: CharSequence?,
+                            start: Int,
+                            before: Int,
+                            count: Int
+                        ) {
+                        }
+
+                        override fun afterTextChanged(s: Editable?) {
+                            onQueryChange(s?.toString() ?: "")
+                        }
+                    })
+                }
+            },
+            update = { view ->
+                if (view.text.toString() != query) {
+                    val selection = view.selectionStart
+                    view.setText(query)
+                    view.setSelection(selection.coerceAtMost(query.length))
+                }
+                // Ensure text color updates instantly if the user changes the app theme
+                view.setTextColor(textColor)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    view.textCursorDrawable?.setTint(cursorTint)
+                }
+            }
+        )
     }
 }
 

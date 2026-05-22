@@ -36,7 +36,6 @@ fun SettingsScreen(
     onNavigateToAbout: () -> Unit,
     onNavigateToFavorites: () -> Unit
 ) {
-    val shortsDir = File(Environment.getExternalStorageDirectory(), "Shorts")
     val currentTheme by themeManager.currentTheme.collectAsState()
 
     Column(
