@@ -1,6 +1,5 @@
 package zeki.productions.shorts.ui.screens
 
-import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,18 +14,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import zeki.productions.shorts.ui.theme.AppTheme
 import zeki.productions.shorts.ui.theme.ThemeManager
-import java.io.File
 
 @Composable
 fun SettingsScreen(
@@ -37,6 +34,55 @@ fun SettingsScreen(
     onNavigateToFavorites: () -> Unit
 ) {
     val currentTheme by themeManager.currentTheme.collectAsState()
+
+    // State for the Delete Confirmation Dialog
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // THE DELETE CONFIRMATION DIALOG
+    if (showDeleteDialog) {
+        Dialog(onDismissRequest = { showDeleteDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text(
+                        text = "Purge Seen Records?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "This will permanently delete all non-favorited videos you have already watched from your device storage. This action cannot be undone.",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(32.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextButton(onClick = { showDeleteDialog = false }) {
+                            Text("Cancel", color = Color.Gray, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                showDeleteDialog = false
+                                onDeleteSeen()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -57,14 +103,14 @@ fun SettingsScreen(
         Text("APPEARANCE", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(AppTheme.values()) { theme ->
+            items(AppTheme.entries.toTypedArray()) { theme ->
                 val isSelected = theme == currentTheme
                 val displayColor = when (theme) {
                     AppTheme.OXBLOOD -> Color(0xFF8B0000)
                     AppTheme.MIDNIGHT -> Color(0xFF007AFF)
                     AppTheme.FOREST -> Color(0xFF10B981)
                     AppTheme.AMETHYST -> Color(0xFFA855F7)
-                    AppTheme.LIGHT -> Color(0xFFE11D48) // Light Mode bubble color
+                    AppTheme.LIGHT -> Color(0xFFE11D48)
                 }
 
                 Box(
@@ -139,7 +185,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "About FILA TikTok",
+                "About FILA Shorts",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -148,7 +194,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
-            onClick = onDeleteSeen,
+            onClick = { showDeleteDialog = true }, // TRIGGER DIALOG INSTEAD OF INSTANT DELETE
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
@@ -166,7 +212,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "Delete Seen Records",
+                "Purge Seen Records",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
