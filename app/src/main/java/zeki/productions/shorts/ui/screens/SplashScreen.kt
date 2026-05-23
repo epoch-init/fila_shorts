@@ -107,7 +107,7 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "FILA SHORTS",
+                text = "FILA TikTok",
                 color = MaterialTheme.colorScheme.onBackground,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black,

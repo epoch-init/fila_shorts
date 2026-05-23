@@ -45,7 +45,7 @@ fun SettingsScreen(
             .padding(bottom = 32.dp)
     ) {
         Text(
-            text = "CONTROL CENTER",
+            text = "Settings",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Black
@@ -139,7 +139,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "About FILA SHORTS",
+                "About FILA TikTok",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -166,7 +166,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "Purge Seen Records",
+                "Delete Seen Records",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )

@@ -192,7 +192,7 @@ fun MainScreen(
                         ) {
                             Column(modifier = Modifier.padding(24.dp)) {
                                 Text(
-                                    text = "Exit FILA Sports?",
+                                    text = "Exit FILA TikTok?",
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface

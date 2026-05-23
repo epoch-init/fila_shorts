@@ -134,7 +134,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "FILA SHORTS",
+                        text = "FILA TikTok",
                         color = MaterialTheme.colorScheme.onBackground,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Black,
@@ -163,7 +163,7 @@ fun AboutScreen(onBack: () -> Unit) {
             item {
                 Spacer(modifier = Modifier.height(48.dp))
                 Text(
-                    text = "© 2026 FILA SHORTS. All rights reserved.",
+                    text = "© 2026 FILA TikTok. All rights reserved.",
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
