@@ -70,8 +70,8 @@ val appDevelopers = listOf(
 
 val filaFounders = listOf(
     FounderInfo("Mussie Gidewon", "07432827"),
-    FounderInfo("Nahom", "07111085"),
-    FounderInfo("Hussien", "07194056")
+    FounderInfo("Nahom Ghirmatsion", "07111085"),
+    FounderInfo("Hussien Khalifa", "07194056")
 )
 
 @Composable
