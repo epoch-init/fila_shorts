@@ -185,7 +185,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "About FILA Shorts",
+                "About FILA TikTok",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
