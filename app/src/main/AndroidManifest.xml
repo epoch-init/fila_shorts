@@ -18,8 +18,6 @@
         android:theme="@style/Theme.Shorts"
         android:requestLegacyExternalStorage="true"
         >
-        <!--        android:requestRawExternalStorageAccess="true"-->
-
         <activity
             android:name="zeki.productions.shorts.MainActivity"
             android:exported="true">
