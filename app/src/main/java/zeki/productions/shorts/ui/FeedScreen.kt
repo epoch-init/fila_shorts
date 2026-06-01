@@ -39,7 +39,8 @@ fun FeedScreen(
     initialVideoId: String? = null,
     onVideoSeen: (String) -> Unit,
     onToggleFavorite: (VideoEntity) -> Unit,
-    onAccountSelected: (String) -> Unit
+    onAccountSelected: (String) -> Unit,
+    onImmersiveChange: (Boolean) -> Unit // FIX: Added immersive state callback
 ) {
     if (videos.isEmpty()) {
         VoidState()
@@ -55,7 +56,6 @@ fun FeedScreen(
     var isAppForeground by remember { mutableStateOf(true) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // State for our Custom "End of Feed" Toast
     var showEndToast by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
@@ -77,6 +77,7 @@ fun FeedScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             playerPool.release()
+            onImmersiveChange(false) // Exit immersive mode when leaving feed
         }
     }
 
@@ -106,7 +107,6 @@ fun FeedScreen(
         if (isAppForeground) onVideoSeen(activeVideoId)
     }
 
-    // FIX: NestedScrollConnection exactly detects when the user swipes past the bounds
     val overscrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPostScroll(
@@ -114,13 +114,11 @@ fun FeedScreen(
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
-                // available.y < 0 means the user is dragging their finger UP (trying to scroll down the list).
-                // If there's unconsumed negative Y and we are on the very last video, they hit the bottom!
                 if (available.y < 0f && pagerState.currentPage == videos.size - 1) {
                     if (!showEndToast) {
                         showEndToast = true
                         scope.launch {
-                            delay(2500) // Show toast for 2.5 seconds
+                            delay(2500)
                             showEndToast = false
                         }
                     }
@@ -135,7 +133,7 @@ fun FeedScreen(
             .fillMaxSize()
             .background(Color.Black)
             .clipToBounds()
-            .nestedScroll(overscrollConnection) // Attach the scroll detector here
+            .nestedScroll(overscrollConnection)
     ) {
 
         VerticalPager(
@@ -158,7 +156,8 @@ fun FeedScreen(
                             isActive = pagerState.currentPage == page && isAppForeground,
                             onToggleFavorite = onToggleFavorite,
                             onScrubbingStateChanged = { isPagerLocked = it },
-                            onAccountSelected = onAccountSelected
+                            onAccountSelected = onAccountSelected,
+                            onImmersiveChange = onImmersiveChange // Pass to player
                         )
                     } else {
                         Box(Modifier
@@ -169,7 +168,6 @@ fun FeedScreen(
             }
         }
 
-        // Custom "End of Feed" Cinematic Toast
         AnimatedVisibility(
             visible = showEndToast,
             enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { -it },

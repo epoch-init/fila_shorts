@@ -1,7 +1,9 @@
 package zeki.productions.shorts.ui
 
 import android.app.Activity
+import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import kotlinx.coroutines.launch
 import zeki.productions.shorts.data.ShortsDatabase
 import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.ui.components.CategoryBar
+import zeki.productions.shorts.ui.components.SwipeTutorialOverlay
 import zeki.productions.shorts.ui.navigation.BottomNavItem
 import zeki.productions.shorts.ui.screens.AboutScreen
 import zeki.productions.shorts.ui.screens.CategoriesScreen
@@ -52,11 +55,17 @@ fun MainScreen(
     var videos by remember { mutableStateOf(emptyList<VideoEntity>()) }
     var selectedCategory by remember { mutableStateOf("All") }
 
-    // FIX: A unique seed to randomize the feed while keeping it stable during playback
     var homeFeedSeed by remember { mutableLongStateOf(System.currentTimeMillis()) }
-
     var showSettingsSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // FIX: Global Immersive State (Hides UI when video is playing)
+    var isImmersiveMode by remember { mutableStateOf(false) }
+
+    // FIX: First-Time User Experience (Swipe Tutorial)
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fila_prefs", Context.MODE_PRIVATE) }
+    var showSwipeTutorial by remember { mutableStateOf(prefs.getBoolean("show_tutorial", true)) }
 
     val categories = remember(videos) {
         val list = mutableListOf("All")
@@ -69,7 +78,6 @@ fun MainScreen(
         list
     }
 
-    // FIX: Apply a seeded shuffle so videos load randomly per category session
     val filteredVideos = remember(videos, selectedCategory, homeFeedSeed) {
         val baseList = when (selectedCategory) {
             "All" -> videos
@@ -110,139 +118,323 @@ fun MainScreen(
                 MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, bottomNavGradientColor)
-                        )
-                    )
+            // FIX: Hide Bottom Navigation Bar in Immersive Mode
+            AnimatedVisibility(
+                visible = !isImmersiveMode || !isVideoFeed,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut()
             ) {
-                NavigationBar(
-                    containerColor = Color.Transparent,
-                    tonalElevation = 0.dp,
-                    windowInsets = WindowInsets.navigationBars
-                ) {
-                    val items = listOf(
-                        BottomNavItem.Home,
-                        BottomNavItem.Categories,
-                        BottomNavItem.Search,
-                        BottomNavItem.Settings
-                    )
-
-                    items.forEach { item ->
-                        NavigationBarItem(
-                            icon = { Icon(item.icon, contentDescription = null) },
-                            label = { Text(item.label) },
-                            selected = currentDestination?.hierarchy?.any {
-                                it.route?.startsWith(
-                                    item.route
-                                ) == true
-                            } == true,
-                            onClick = {
-                                if (item == BottomNavItem.Settings) {
-                                    showSettingsSheet = true
-                                } else {
-                                    navController.navigate(item.route) {
-                                        popUpTo(navController.graph.startDestinationId) {
-                                            inclusive = false
-                                        }
-                                        launchSingleTop = true
-                                    }
-                                }
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = unselectedTint,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedTextColor = unselectedTint,
-                                indicatorColor = Color.Transparent
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, bottomNavGradientColor)
                             )
                         )
+                ) {
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp,
+                        windowInsets = WindowInsets.navigationBars
+                    ) {
+                        val items = listOf(
+                            BottomNavItem.Home,
+                            BottomNavItem.Categories,
+                            BottomNavItem.Search,
+                            BottomNavItem.Settings
+                        )
+
+                        items.forEach { item ->
+                            NavigationBarItem(
+                                icon = { Icon(item.icon, contentDescription = null) },
+                                label = { Text(item.label) },
+                                selected = currentDestination?.hierarchy?.any {
+                                    it.route?.startsWith(
+                                        item.route
+                                    ) == true
+                                } == true,
+                                onClick = {
+                                    if (item == BottomNavItem.Settings) {
+                                        showSettingsSheet = true
+                                    } else {
+                                        navController.navigate(item.route) {
+                                            popUpTo(navController.graph.startDestinationId) {
+                                                inclusive = false
+                                            }
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    unselectedIconColor = unselectedTint,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    unselectedTextColor = unselectedTint,
+                                    indicatorColor = Color.Transparent
+                                )
+                            )
+                        }
                     }
                 }
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomNavItem.Home.route + "?videoId={videoId}",
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = BottomNavItem.Home.route + "?videoId={videoId}",
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
 
-            composable(
-                route = BottomNavItem.Home.route + "?videoId={videoId}",
-                arguments = listOf(navArgument("videoId") {
-                    defaultValue = ""; type = NavType.StringType
-                })
-            ) { backStackEntry ->
-                val targetId = backStackEntry.arguments?.getString("videoId")
+                composable(
+                    route = BottomNavItem.Home.route + "?videoId={videoId}",
+                    arguments = listOf(navArgument("videoId") {
+                        defaultValue = ""; type = NavType.StringType
+                    })
+                ) { backStackEntry ->
+                    val targetId = backStackEntry.arguments?.getString("videoId")
 
-                val context = LocalContext.current
-                var showExitDialog by remember { mutableStateOf(false) }
+                    var showExitDialog by remember { mutableStateOf(false) }
+                    BackHandler { showExitDialog = true }
 
-                BackHandler { showExitDialog = true }
-
-                if (showExitDialog) {
-                    Dialog(onDismissRequest = { showExitDialog = false }) {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 8.dp
-                        ) {
-                            Column(modifier = Modifier.padding(24.dp)) {
-                                Text(
-                                    text = "Exit FILA Sports?",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    text = "Are you sure you want to close the app?",
-                                    color = Color.Gray,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Spacer(Modifier.height(32.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.End,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    TextButton(onClick = { showExitDialog = false }) {
-                                        Text(
-                                            "Cancel",
-                                            color = Color.Gray,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                    Button(
-                                        onClick = { (context as? Activity)?.finish() },
-                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                        shape = RoundedCornerShape(8.dp)
+                    if (showExitDialog) {
+                        Dialog(onDismissRequest = { showExitDialog = false }) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 8.dp
+                            ) {
+                                Column(modifier = Modifier.padding(24.dp)) {
+                                    Text(
+                                        text = "Exit FILA Sports?",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        text = "Are you sure you want to close the app?",
+                                        color = Color.Gray,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Spacer(Modifier.height(32.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.End,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text(
-                                            "Exit",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        TextButton(onClick = { showExitDialog = false }) {
+                                            Text(
+                                                "Cancel",
+                                                color = Color.Gray,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        Button(
+                                            onClick = { (context as? Activity)?.finish() },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                "Exit",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        key(selectedCategory, homeFeedSeed) {
+                            FeedScreen(
+                                videos = filteredVideos,
+                                initialVideoId = targetId,
+                                onVideoSeen = { id ->
+                                    scope.launch(Dispatchers.IO) {
+                                        liveDb.videoDao().incrementViewCount(id)
+                                    }
+                                },
+                                onToggleFavorite = { updatedVideo ->
+                                    scope.launch(Dispatchers.IO) {
+                                        liveDb.videoDao().updateVideo(updatedVideo)
+                                        onRefreshStable()
+                                    }
+                                },
+                                onAccountSelected = { accountName ->
+                                    navController.navigate("profile/$accountName")
+                                },
+                                onImmersiveChange = { isImmersiveMode = it } // Pass up state
+                            )
+                        }
+
+                        // FIX: Hide Category Bar in Immersive Mode
+                        AnimatedVisibility(
+                            visible = !isImmersiveMode,
+                            enter = slideInVertically { -it } + fadeIn(),
+                            exit = slideOutVertically { -it } + fadeOut(),
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        ) {
+                            CategoryBar(categories, selectedCategory) { newCategory ->
+                                selectedCategory = newCategory
+                                homeFeedSeed = System.currentTimeMillis()
+                            }
+                        }
+                    }
                 }
 
-                Box(modifier = Modifier.fillMaxSize()) {
+                composable(BottomNavItem.Categories.route) {
+                    Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                        CategoriesScreen(
+                            allVideos = videos,
+                            onCategorySelected = { categoryName ->
+                                navController.navigate("creators/$categoryName")
+                            }
+                        )
+                    }
+                }
 
-                    // FIX: Wrapped FeedScreen in a `key` block.
-                    // This forces the Pager to completely reset to video index 0 every time the category or seed changes!
-                    key(selectedCategory, homeFeedSeed) {
+                composable(
+                    route = "creators/{categoryName}",
+                    arguments = listOf(navArgument("categoryName") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val categoryName = backStackEntry.arguments?.getString("categoryName") ?: ""
+                    Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                        CreatorsScreen(
+                            categoryName = categoryName,
+                            allVideos = videos,
+                            onBack = { navController.popBackStack() },
+                            onAccountSelected = { accountName ->
+                                navController.navigate("profile/$accountName")
+                            },
+                            onVideoSelected = { accountName, videoId ->
+                                navController.navigate("profile_feed/$accountName?videoId=$videoId")
+                            }
+                        )
+                    }
+                }
+
+                composable(BottomNavItem.Search.route) {
+                    Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                        SearchScreen(
+                            videos = videos,
+                            onVideoSelected = { videoId ->
+                                navController.navigate(BottomNavItem.Home.route + "?videoId=$videoId") {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        inclusive = false
+                                    }
+                                    launchSingleTop = true
+                                }
+                            },
+                            onAccountSelected = { accountName ->
+                                navController.navigate("profile/$accountName")
+                            }
+                        )
+                    }
+                }
+
+                composable(
+                    route = "profile/{accountName}",
+                    arguments = listOf(navArgument("accountName") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
+                    Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                        ProfileScreen(
+                            accountName = accountName,
+                            allVideos = videos,
+                            onBack = { navController.popBackStack() },
+                            onVideoSelected = { videoId ->
+                                navController.navigate("profile_feed/$accountName?videoId=$videoId")
+                            }
+                        )
+                    }
+                }
+
+                composable(
+                    route = "profile_feed/{accountName}?videoId={videoId}",
+                    arguments = listOf(
+                        navArgument("accountName") { type = NavType.StringType },
+                        navArgument("videoId") { defaultValue = ""; type = NavType.StringType }
+                    )
+                ) { backStackEntry ->
+                    val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
+                    val targetId = backStackEntry.arguments?.getString("videoId")
+
+                    val accountVideos = remember(videos, accountName) {
+                        videos.filter { it.accountName.equals(accountName, ignoreCase = true) }
+                    }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
                         FeedScreen(
-                            videos = filteredVideos,
+                            videos = accountVideos,
+                            initialVideoId = targetId,
+                            onVideoSeen = { id ->
+                                scope.launch(Dispatchers.IO) {
+                                    liveDb.videoDao().incrementViewCount(id)
+                                }
+                            },
+                            onToggleFavorite = { updatedVideo ->
+                                scope.launch(Dispatchers.IO) {
+                                    liveDb.videoDao().updateVideo(updatedVideo)
+                                    onRefreshStable()
+                                }
+                            },
+                            onAccountSelected = { navController.popBackStack() },
+                            onImmersiveChange = { isImmersiveMode = it }
+                        )
+
+                        AnimatedVisibility(
+                            visible = !isImmersiveMode,
+                            enter = fadeIn(), exit = fadeOut(),
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .statusBarsPadding()
+                                .padding(8.dp)
+                        ) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(
+                                    Icons.Default.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                composable("favorites_list") {
+                    Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                        FavoritesListScreen(
+                            allVideos = videos,
+                            onBack = { navController.popBackStack() },
+                            onVideoSelected = { videoId ->
+                                navController.navigate("favorites_feed?videoId=$videoId")
+                            }
+                        )
+                    }
+                }
+
+                composable(
+                    route = "favorites_feed?videoId={videoId}",
+                    arguments = listOf(navArgument("videoId") {
+                        defaultValue = ""; type = NavType.StringType
+                    })
+                ) { backStackEntry ->
+                    val targetId = backStackEntry.arguments?.getString("videoId")
+
+                    val favoriteVideos = remember(videos) {
+                        videos.filter { it.isFavorite }
+                    }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        FeedScreen(
+                            videos = favoriteVideos,
                             initialVideoId = targetId,
                             onVideoSeen = { id ->
                                 scope.launch(Dispatchers.IO) {
@@ -257,199 +449,41 @@ fun MainScreen(
                             },
                             onAccountSelected = { accountName ->
                                 navController.navigate("profile/$accountName")
-                            }
+                            },
+                            onImmersiveChange = { isImmersiveMode = it }
                         )
-                    }
 
-                    Box(modifier = Modifier.align(Alignment.TopCenter)) {
-                        CategoryBar(categories, selectedCategory) { newCategory ->
-                            selectedCategory = newCategory
-                            homeFeedSeed =
-                                System.currentTimeMillis() // Trigger a fresh random shuffle
-                        }
-                    }
-                }
-            }
-
-            composable(BottomNavItem.Categories.route) {
-                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                    CategoriesScreen(
-                        allVideos = videos,
-                        onCategorySelected = { categoryName ->
-                            navController.navigate("creators/$categoryName")
-                        }
-                    )
-                }
-            }
-
-            composable(
-                route = "creators/{categoryName}",
-                arguments = listOf(navArgument("categoryName") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val categoryName = backStackEntry.arguments?.getString("categoryName") ?: ""
-                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                    CreatorsScreen(
-                        categoryName = categoryName,
-                        allVideos = videos,
-                        onBack = { navController.popBackStack() },
-                        onAccountSelected = { accountName ->
-                            navController.navigate("profile/$accountName")
-                        },
-                        onVideoSelected = { accountName, videoId ->
-                            navController.navigate("profile_feed/$accountName?videoId=$videoId")
-                        }
-                    )
-                }
-            }
-
-            composable(BottomNavItem.Search.route) {
-                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                    SearchScreen(
-                        videos = videos,
-                        onVideoSelected = { videoId ->
-                            navController.navigate(BottomNavItem.Home.route + "?videoId=$videoId") {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    inclusive = false
-                                }
-                                launchSingleTop = true
+                        AnimatedVisibility(
+                            visible = !isImmersiveMode,
+                            enter = fadeIn(), exit = fadeOut(),
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .statusBarsPadding()
+                                .padding(8.dp)
+                        ) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(
+                                    Icons.Default.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
                             }
-                        },
-                        onAccountSelected = { accountName ->
-                            navController.navigate("profile/$accountName")
                         }
-                    )
-                }
-            }
-
-            composable(
-                route = "profile/{accountName}",
-                arguments = listOf(navArgument("accountName") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
-                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                    ProfileScreen(
-                        accountName = accountName,
-                        allVideos = videos,
-                        onBack = { navController.popBackStack() },
-                        onVideoSelected = { videoId ->
-                            navController.navigate("profile_feed/$accountName?videoId=$videoId")
-                        }
-                    )
-                }
-            }
-
-            composable(
-                route = "profile_feed/{accountName}?videoId={videoId}",
-                arguments = listOf(
-                    navArgument("accountName") { type = NavType.StringType },
-                    navArgument("videoId") { defaultValue = ""; type = NavType.StringType }
-                )
-            ) { backStackEntry ->
-                val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
-                val targetId = backStackEntry.arguments?.getString("videoId")
-
-                val accountVideos = remember(videos, accountName) {
-                    videos.filter { it.accountName.equals(accountName, ignoreCase = true) }
-                }
-
-                Box(modifier = Modifier.fillMaxSize()) {
-                    FeedScreen(
-                        videos = accountVideos,
-                        initialVideoId = targetId,
-                        onVideoSeen = { id ->
-                            scope.launch(Dispatchers.IO) {
-                                liveDb.videoDao().incrementViewCount(id)
-                            }
-                        },
-                        onToggleFavorite = { updatedVideo ->
-                            scope.launch(Dispatchers.IO) {
-                                liveDb.videoDao().updateVideo(updatedVideo)
-                                onRefreshStable()
-                            }
-                        },
-                        onAccountSelected = { navController.popBackStack() }
-                    )
-
-                    IconButton(
-                        onClick = { navController.popBackStack() },
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .statusBarsPadding()
-                            .padding(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
                     }
                 }
-            }
 
-            composable("favorites_list") {
-                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                    FavoritesListScreen(
-                        allVideos = videos,
-                        onBack = { navController.popBackStack() },
-                        onVideoSelected = { videoId ->
-                            navController.navigate("favorites_feed?videoId=$videoId")
-                        }
-                    )
+                composable("about") {
+                    AboutScreen(onBack = { navController.popBackStack() })
                 }
             }
 
-            composable(
-                route = "favorites_feed?videoId={videoId}",
-                arguments = listOf(navArgument("videoId") {
-                    defaultValue = ""; type = NavType.StringType
+            // FIX: Inject the FTUE (First Time User Experience) Swipe Tutorial
+            if (showSwipeTutorial && videos.isNotEmpty()) {
+                SwipeTutorialOverlay(onDismiss = {
+                    showSwipeTutorial = false
+                    prefs.edit().putBoolean("show_tutorial", false).apply()
                 })
-            ) { backStackEntry ->
-                val targetId = backStackEntry.arguments?.getString("videoId")
-
-                val favoriteVideos = remember(videos) {
-                    videos.filter { it.isFavorite }
-                }
-
-                Box(modifier = Modifier.fillMaxSize()) {
-                    FeedScreen(
-                        videos = favoriteVideos,
-                        initialVideoId = targetId,
-                        onVideoSeen = { id ->
-                            scope.launch(Dispatchers.IO) {
-                                liveDb.videoDao().incrementViewCount(id)
-                            }
-                        },
-                        onToggleFavorite = { updatedVideo ->
-                            scope.launch(Dispatchers.IO) {
-                                liveDb.videoDao().updateVideo(updatedVideo)
-                                onRefreshStable()
-                            }
-                        },
-                        onAccountSelected = { accountName ->
-                            navController.navigate("profile/$accountName")
-                        }
-                    )
-
-                    IconButton(
-                        onClick = { navController.popBackStack() },
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .statusBarsPadding()
-                            .padding(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-            }
-
-            composable("about") {
-                AboutScreen(onBack = { navController.popBackStack() })
             }
         }
 

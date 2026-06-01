@@ -47,7 +47,8 @@ fun ShortVideoPlayer(
     isActive: Boolean,
     onToggleFavorite: (VideoEntity) -> Unit,
     onScrubbingStateChanged: (Boolean) -> Unit,
-    onAccountSelected: (String) -> Unit
+    onAccountSelected: (String) -> Unit,
+    onImmersiveChange: (Boolean) -> Unit // FIX: Callback for immersive mode
 ) {
     val context = LocalContext.current
     var isPausedByUser by remember { mutableStateOf(false) }
@@ -57,7 +58,6 @@ fun ShortVideoPlayer(
     var localIsFavorite by remember(video.id) { mutableStateOf(video.isFavorite) }
     var lastDoubleTap by remember { mutableStateOf<TapEvent?>(null) }
 
-    // FIX: Get dynamic system navigation bar height
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     LaunchedEffect(isScrubbing) { onScrubbingStateChanged(isScrubbing) }
@@ -74,6 +74,12 @@ fun ShortVideoPlayer(
 
     LaunchedEffect(isActive, isPausedByUser) {
         exoPlayer.playWhenReady = isActive && !isPausedByUser
+    }
+
+    // FIX: Notify parent to hide/show system UI
+    LaunchedEffect(isActive, isPausedByUser, isScrubbing) {
+        // Immersive = Playing & Not Scrubbing. If inactive, don't force immersive.
+        onImmersiveChange(isActive && !isPausedByUser && !isScrubbing)
     }
 
     Box(
@@ -124,15 +130,22 @@ fun ShortVideoPlayer(
             }
         )
 
-        VideoInteractionOverlay(
-            video = video,
-            isFavorite = localIsFavorite,
-            onToggleFavorite = {
-                localIsFavorite = !localIsFavorite
-                onToggleFavorite(video.copy(isFavorite = localIsFavorite))
-            },
-            onAccountSelected = onAccountSelected
-        )
+        // FIX: Only show interactions (name, description, likes) when Paused
+        AnimatedVisibility(
+            visible = isPausedByUser,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            VideoInteractionOverlay(
+                video = video,
+                isFavorite = localIsFavorite,
+                onToggleFavorite = {
+                    localIsFavorite = !localIsFavorite
+                    onToggleFavorite(video.copy(isFavorite = localIsFavorite))
+                },
+                onAccountSelected = onAccountSelected
+            )
+        }
 
         AnimatedVisibility(
             visible = isPausedByUser && !isScrubbing,
@@ -191,22 +204,28 @@ fun ShortVideoPlayer(
             }
         }
 
-        val barHeight by animateDpAsState(if (isScrubbing) 8.dp else 2.dp)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                // FIX: Dynamic padding + 90.dp for app menu
-                .padding(bottom = navBarHeight + 90.dp)
-                .fillMaxWidth()
-                .height(barHeight)
-                .background(Color.White.copy(alpha = 0.2f))
+        // Only show scrubber when paused or actively scrubbing
+        AnimatedVisibility(
+            visible = isPausedByUser || isScrubbing,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier.align(Alignment.BottomStart)
         ) {
+            val barHeight by animateDpAsState(if (isScrubbing) 8.dp else 2.dp)
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(progress)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.primary)
-            )
+                    .padding(bottom = navBarHeight + 90.dp)
+                    .fillMaxWidth()
+                    .height(barHeight)
+                    .background(Color.White.copy(alpha = 0.2f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+            }
         }
 
         AnimatedVisibility(
@@ -215,7 +234,6 @@ fun ShortVideoPlayer(
             exit = fadeOut() + slideOutVertically { it / 2 },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                // FIX: Dynamic padding + 110.dp so it hovers over the scrubber
                 .padding(bottom = navBarHeight + 110.dp)
         ) {
             Text(
@@ -273,20 +291,14 @@ private fun TexturePlayerView(
                         val width = right - left
                         val height = bottom - top
                         val (vw, vh) = videoSize
-                        applyCenterCropMatrix(
-                            view as android.view.TextureView,
-                            width,
-                            height,
-                            vw,
-                            vh
-                        )
+                        applyFitMatrix(view as android.view.TextureView, width, height, vw, vh)
                     }
                 }
             },
             modifier = modifier.clipToBounds(),
             update = { textureView ->
                 val (vw, vh) = videoSize
-                applyCenterCropMatrix(textureView, textureView.width, textureView.height, vw, vh)
+                applyFitMatrix(textureView, textureView.width, textureView.height, vw, vh)
             },
             onRelease = { textureView ->
                 exoPlayer.clearVideoTextureView(textureView)
@@ -295,7 +307,8 @@ private fun TexturePlayerView(
     }
 }
 
-private fun applyCenterCropMatrix(
+// FIX: Matrix now scales using FIT constraints, maintaining aspect ratio without cropping
+private fun applyFitMatrix(
     textureView: android.view.TextureView,
     viewWidth: Int,
     viewHeight: Int,
@@ -305,9 +318,13 @@ private fun applyCenterCropMatrix(
     if (viewWidth == 0 || viewHeight == 0 || videoWidth == 0 || videoHeight == 0) return
     val scaleX = viewWidth.toFloat() / videoWidth
     val scaleY = viewHeight.toFloat() / videoHeight
-    val maxScale = maxOf(scaleX, scaleY)
-    val scaleCorrectionX = maxScale / scaleX
-    val scaleCorrectionY = maxScale / scaleY
+
+    // minOf guarantees the entire video fits inside the screen bounds
+    val minScale = minOf(scaleX, scaleY)
+
+    val scaleCorrectionX = minScale / scaleX
+    val scaleCorrectionY = minScale / scaleY
+
     val matrix = android.graphics.Matrix()
     matrix.setScale(scaleCorrectionX, scaleCorrectionY, viewWidth / 2f, viewHeight / 2f)
     textureView.setTransform(matrix)
