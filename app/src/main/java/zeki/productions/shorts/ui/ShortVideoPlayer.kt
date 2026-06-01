@@ -1,6 +1,8 @@
 package zeki.productions.shorts.ui
 
+import android.app.Activity
 import android.view.ViewGroup
+import android.view.WindowManager
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -48,7 +50,7 @@ fun ShortVideoPlayer(
     onToggleFavorite: (VideoEntity) -> Unit,
     onScrubbingStateChanged: (Boolean) -> Unit,
     onAccountSelected: (String) -> Unit,
-    onImmersiveChange: (Boolean) -> Unit // FIX: Callback for immersive mode
+    onImmersiveChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     var isPausedByUser by remember { mutableStateOf(false) }
@@ -59,6 +61,19 @@ fun ShortVideoPlayer(
     var lastDoubleTap by remember { mutableStateOf<TapEvent?>(null) }
 
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+    // FIX: Dynamically keep the screen ON only while actively playing a video
+    DisposableEffect(isActive, isPausedByUser) {
+        val activity = context as? Activity
+        if (isActive && !isPausedByUser) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
 
     LaunchedEffect(isScrubbing) { onScrubbingStateChanged(isScrubbing) }
 
@@ -76,9 +91,7 @@ fun ShortVideoPlayer(
         exoPlayer.playWhenReady = isActive && !isPausedByUser
     }
 
-    // FIX: Notify parent to hide/show system UI
     LaunchedEffect(isActive, isPausedByUser, isScrubbing) {
-        // Immersive = Playing & Not Scrubbing. If inactive, don't force immersive.
         onImmersiveChange(isActive && !isPausedByUser && !isScrubbing)
     }
 
@@ -130,7 +143,6 @@ fun ShortVideoPlayer(
             }
         )
 
-        // FIX: Only show interactions (name, description, likes) when Paused
         AnimatedVisibility(
             visible = isPausedByUser,
             enter = fadeIn(),
@@ -204,7 +216,6 @@ fun ShortVideoPlayer(
             }
         }
 
-        // Only show scrubber when paused or actively scrubbing
         AnimatedVisibility(
             visible = isPausedByUser || isScrubbing,
             enter = slideInVertically { it } + fadeIn(),
@@ -307,7 +318,6 @@ private fun TexturePlayerView(
     }
 }
 
-// FIX: Matrix now scales using FIT constraints, maintaining aspect ratio without cropping
 private fun applyFitMatrix(
     textureView: android.view.TextureView,
     viewWidth: Int,
@@ -318,13 +328,9 @@ private fun applyFitMatrix(
     if (viewWidth == 0 || viewHeight == 0 || videoWidth == 0 || videoHeight == 0) return
     val scaleX = viewWidth.toFloat() / videoWidth
     val scaleY = viewHeight.toFloat() / videoHeight
-
-    // minOf guarantees the entire video fits inside the screen bounds
     val minScale = minOf(scaleX, scaleY)
-
     val scaleCorrectionX = minScale / scaleX
     val scaleCorrectionY = minScale / scaleY
-
     val matrix = android.graphics.Matrix()
     matrix.setScale(scaleCorrectionX, scaleCorrectionY, viewWidth / 2f, viewHeight / 2f)
     textureView.setTransform(matrix)

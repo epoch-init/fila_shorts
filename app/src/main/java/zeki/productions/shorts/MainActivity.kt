@@ -54,7 +54,6 @@ class MainActivity : ComponentActivity() {
             val currentTheme by themeManager.currentTheme.collectAsState()
 
             ShortsTheme(theme = currentTheme) {
-                // State to control the Splash Screen vs Main App flow
                 var showSplash by rememberSaveable { mutableStateOf(true) }
 
                 var isAccessGranted by remember { mutableStateOf(permissionManager.isFullyGranted()) }
@@ -66,7 +65,6 @@ class MainActivity : ComponentActivity() {
                             val granted = permissionManager.isFullyGranted()
                             if (granted != isAccessGranted) isAccessGranted = granted
 
-                            // Only proactively sync if we aren't stuck on the splash screen
                             if (isAccessGranted && !showSplash) {
                                 syncManager?.startProactiveSync()
                             }
@@ -76,7 +74,6 @@ class MainActivity : ComponentActivity() {
                     onDispose { lifecycle.removeObserver(observer) }
                 }
 
-                // Smooth Crossfade transition from Splash to the App
                 Crossfade(
                     targetState = showSplash,
                     animationSpec = tween(600),
@@ -86,7 +83,6 @@ class MainActivity : ComponentActivity() {
                         SplashScreen(
                             onSplashFinished = {
                                 showSplash = false
-                                // Kick off the sync process as soon as splash finishes (if we have permissions)
                                 if (isAccessGranted) syncManager?.startProactiveSync()
                             }
                         )
@@ -116,7 +112,8 @@ class MainActivity : ComponentActivity() {
         val dao = liveDb?.videoDao() ?: return
         val rootShortsDir = File(Environment.getExternalStorageDirectory(), "Shorts").absolutePath
 
-        dao.getSeenActiveVideos().filter { !it.isFavorite }.forEach { video ->
+        // FIX: The DAO now intrinsically blocks Favorited videos from being returned here.
+        dao.getSeenActiveVideos().forEach { video ->
             File(video.videoPath).delete()
             File(video.jsonPath).delete()
             File(video.imagePath).delete()

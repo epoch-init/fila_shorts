@@ -3,9 +3,6 @@ package zeki.productions.shorts.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
-/**
- * v1.8.2: Atomic Ledger Operations.
- */
 @Dao
 interface VideoDao {
     @Query("SELECT * FROM videos WHERE isDeleted = 0 ORDER BY viewedCount ASC")
@@ -26,7 +23,7 @@ interface VideoDao {
     @Update
     suspend fun updateVideo(video: VideoEntity)
 
-    @Query("SELECT * FROM videos WHERE viewedCount > 0 AND isDeleted = 0")
+    @Query("SELECT * FROM videos WHERE viewedCount > 0 AND isDeleted = 0 AND isFavorite = 0")
     suspend fun getSeenActiveVideos(): List<VideoEntity>
 
     @Transaction
