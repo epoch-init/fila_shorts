@@ -29,6 +29,7 @@ import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.ui.components.CategoryBar
 import zeki.productions.shorts.ui.navigation.BottomNavItem
 import zeki.productions.shorts.ui.screens.AboutScreen
+import zeki.productions.shorts.ui.screens.CategoriesScreen
 import zeki.productions.shorts.ui.screens.CreatorsScreen
 import zeki.productions.shorts.ui.screens.FavoritesListScreen
 import zeki.productions.shorts.ui.screens.ProfileScreen
@@ -119,7 +120,7 @@ fun MainScreen(
                 ) {
                     val items = listOf(
                         BottomNavItem.Home,
-                        BottomNavItem.Creators,
+                        BottomNavItem.Categories, // FIX: Injected Categories Tab
                         BottomNavItem.Search,
                         BottomNavItem.Settings
                     )
@@ -166,7 +167,6 @@ fun MainScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
 
-            // 1. MAIN HOME FEED (With Exit Intercept)
             composable(
                 route = BottomNavItem.Home.route + "?videoId={videoId}",
                 arguments = listOf(navArgument("videoId") {
@@ -175,13 +175,10 @@ fun MainScreen(
             ) { backStackEntry ->
                 val targetId = backStackEntry.arguments?.getString("videoId")
 
-                // EXIT CONFIRMATION LOGIC
                 val context = LocalContext.current
                 var showExitDialog by remember { mutableStateOf(false) }
 
-                BackHandler {
-                    showExitDialog = true
-                }
+                BackHandler { showExitDialog = true }
 
                 if (showExitDialog) {
                     Dialog(onDismissRequest = { showExitDialog = false }) {
@@ -192,7 +189,7 @@ fun MainScreen(
                         ) {
                             Column(modifier = Modifier.padding(24.dp)) {
                                 Text(
-                                    text = "Exit FILA TikTok?",
+                                    text = "Exit FILA Sports?",
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -259,10 +256,29 @@ fun MainScreen(
                 }
             }
 
-            composable(BottomNavItem.Creators.route) {
+            // NEW: Categories Root Screen
+            composable(BottomNavItem.Categories.route) {
+                Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                    CategoriesScreen(
+                        allVideos = videos,
+                        onCategorySelected = { categoryName ->
+                            navController.navigate("creators/$categoryName")
+                        }
+                    )
+                }
+            }
+
+            // NEW: Sub-Screen showing creators within a category
+            composable(
+                route = "creators/{categoryName}",
+                arguments = listOf(navArgument("categoryName") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val categoryName = backStackEntry.arguments?.getString("categoryName") ?: ""
                 Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                     CreatorsScreen(
+                        categoryName = categoryName,
                         allVideos = videos,
+                        onBack = { navController.popBackStack() },
                         onAccountSelected = { accountName ->
                             navController.navigate("profile/$accountName")
                         },

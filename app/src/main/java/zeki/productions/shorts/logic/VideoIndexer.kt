@@ -10,10 +10,6 @@ import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.io.path.name
 
-/**
- * v1.8.4: NIO FileWalker Implementation.
- * Fixed massive DB rewrite inefficiency by skipping unmodified active records.
- */
 class VideoIndexer(private val dao: VideoDao) {
     private val TAG = "GEMINI_DEBUG"
 
@@ -37,17 +33,33 @@ class VideoIndexer(private val dao: VideoDao) {
                     val id = fileName.substringBefore(".mp4.short")
                     discoveredIds.add(id)
 
-                    val userDir = file.parent
-                    val accountName = userDir?.name ?: "Unknown"
+                    // FIX: Robust relative path parsing for deep hierarchy
+                    val relPath = rootPath.relativize(file)
+                    val depth = relPath.nameCount
+
+                    // Expected: Tech/MKBHD/video.mp4.short (depth = 3)
+                    // Legacy: MKBHD/video.mp4.short (depth = 2)
+                    val categoryName =
+                        if (depth >= 3) relPath.getName(0).toString() else "Uncategorized"
+                    val accountName = if (depth >= 3) relPath.getName(1)
+                        .toString() else if (depth == 2) relPath.getName(0)
+                        .toString() else "Unknown"
+
                     val historical = ledger[id]
 
                     if (historical != null) {
-                        // FIX: Only stage for update if it requires state mutation
                         if (historical.isDeleted) {
                             foundEntities.add(historical.copy(isDeleted = false))
                         }
                     } else {
-                        foundEntities.add(extractNewEntity(id, accountName, file.toFile()))
+                        foundEntities.add(
+                            extractNewEntity(
+                                id,
+                                accountName,
+                                categoryName,
+                                file.toFile()
+                            )
+                        )
                     }
                 }
                 return FileVisitResult.CONTINUE
@@ -55,18 +67,26 @@ class VideoIndexer(private val dao: VideoDao) {
         })
 
         val toMarkDeleted = ledger.keys.filter { it !in discoveredIds && !ledger[it]!!.isDeleted }
-        Log.d(TAG, "Indexer: Found ${foundEntities.size} to insert/restore, ${toMarkDeleted.size} to mark deleted.")
+        Log.d(
+            TAG,
+            "Indexer: Found ${foundEntities.size} to insert/restore, ${toMarkDeleted.size} to mark deleted."
+        )
 
         dao.syncLedger(foundEntities, toMarkDeleted)
     }
 
-    private fun extractNewEntity(id: String, account: String, videoFile: File): VideoEntity {
+    private fun extractNewEntity(
+        id: String,
+        account: String,
+        fallbackCategory: String,
+        videoFile: File
+    ): VideoEntity {
         val parentDir = videoFile.parentFile
         val infoFile = File(parentDir, "$id.info.json.short")
         val imgFile = File(parentDir, "$id.jpg.short")
 
         var desc = "Imported Short"
-        var cats = "All"
+        var cats = fallbackCategory // Use folder name as default
 
         if (infoFile.exists()) {
             try {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -32,12 +33,16 @@ data class CreatorStats(
 
 @Composable
 fun CreatorsScreen(
+    categoryName: String,
     allVideos: List<VideoEntity>,
+    onBack: () -> Unit,
     onAccountSelected: (String) -> Unit,
     onVideoSelected: (String, String) -> Unit
 ) {
-    val roster = remember(allVideos) {
-        allVideos.groupBy { it.accountName }
+    val roster = remember(allVideos, categoryName) {
+        allVideos
+            .filter { it.categories.contains(categoryName, ignoreCase = true) }
+            .groupBy { it.accountName }
             .map { (name, videos) ->
                 CreatorStats(
                     accountName = name,
@@ -57,13 +62,21 @@ fun CreatorsScreen(
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.9f))
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(vertical = 12.dp)
         ) {
+            IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart)) {
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
             Text(
-                text = "THE ROSTER",
+                text = "$categoryName CREATORS".uppercase(),
                 color = MaterialTheme.colorScheme.onBackground,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Black
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.align(Alignment.Center)
             )
         }
 
