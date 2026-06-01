@@ -50,7 +50,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text(
-                        text = "Purge Seen Records?",
+                        text = "Delete Seen Records?",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -102,7 +102,7 @@ fun SettingsScreen(
         // NEW: Founders' Statement
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "“Revolutionizing secure, offline sports entertainment. No servers. No tracking. Just the content you love, locked safely on your device.”",
+            text = "“Revolutionizing secure, offline learning and entertainment. No servers. No tracking. Just the content you love, locked safely on your device.”",
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.bodyMedium,
             fontStyle = FontStyle.Italic,
@@ -196,7 +196,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "About FILA Sports",
+                "About FILA TikTok",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -223,7 +223,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "Purge Seen Records",
+                "Delete Seen Records",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )

@@ -133,7 +133,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "FILA SPORTS",
+                        text = "FILA TikTok",
                         color = MaterialTheme.colorScheme.onBackground,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Black,
@@ -152,7 +152,7 @@ fun AboutScreen(onBack: () -> Unit) {
                         .padding(horizontal = 24.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = "“Revolutionizing secure, offline sports entertainment. No servers. No tracking. Just the content you love, locked safely on your device.”",
+                        text = "“Revolutionizing secure, offline learning and entertainment. No servers. No tracking. Just the content you love, locked safely on your device.”",
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.bodyMedium,
                         fontStyle = FontStyle.Italic,
@@ -183,7 +183,7 @@ fun AboutScreen(onBack: () -> Unit) {
             item {
                 Spacer(modifier = Modifier.height(48.dp))
                 Text(
-                    text = "© 2026 FILA Sports. All rights reserved.",
+                    text = "© 2026 FILA TikTok. All rights reserved.",
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
