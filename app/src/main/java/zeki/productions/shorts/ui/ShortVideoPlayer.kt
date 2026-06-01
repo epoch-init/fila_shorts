@@ -6,6 +6,7 @@ import android.view.WindowManager
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -18,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
@@ -25,7 +27,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -35,6 +39,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import zeki.productions.shorts.R
 import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.logic.HapticManager
 import kotlin.math.roundToInt
@@ -62,7 +67,6 @@ fun ShortVideoPlayer(
 
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    // FIX: Dynamically keep the screen ON only while actively playing a video
     DisposableEffect(isActive, isPausedByUser) {
         val activity = context as? Activity
         if (isActive && !isPausedByUser) {
@@ -148,15 +152,30 @@ fun ShortVideoPlayer(
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-            VideoInteractionOverlay(
-                video = video,
-                isFavorite = localIsFavorite,
-                onToggleFavorite = {
-                    localIsFavorite = !localIsFavorite
-                    onToggleFavorite(video.copy(isFavorite = localIsFavorite))
-                },
-                onAccountSelected = onAccountSelected
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+
+                // Overlay Interactions
+                VideoInteractionOverlay(
+                    video = video,
+                    isFavorite = localIsFavorite,
+                    onToggleFavorite = {
+                        localIsFavorite = !localIsFavorite
+                        onToggleFavorite(video.copy(isFavorite = localIsFavorite))
+                    },
+                    onAccountSelected = onAccountSelected
+                )
+
+                Image(
+                    painter = painterResource(id = R.drawable.company_logo),
+                    contentDescription = "Company Logo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 90.dp, end = 20.dp) // Sits comfortably below the Category Bar
+                        .height(32.dp) // Keeps it elegant and non-intrusive
+                        .alpha(0.8f) // Slight transparency to blend beautifully
+                )
+            }
         }
 
         AnimatedVisibility(

@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -70,8 +71,8 @@ val appDevelopers = listOf(
 
 val filaFounders = listOf(
     FounderInfo("Mussie Gidewon", "07432827"),
-    FounderInfo("Nahom Ghirmatsion", "07111085"),
-    FounderInfo("Hussien Khalifa", "07194056")
+    FounderInfo("Nahom", "07111085"),
+    FounderInfo("Hussien", "07194056")
 )
 
 @Composable
@@ -109,12 +110,11 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
             }
 
-            // --- BRAND HEADER ---
             item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp, bottom = 40.dp),
+                        .padding(top = 16.dp, bottom = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -124,17 +124,16 @@ fun AboutScreen(onBack: () -> Unit) {
                             .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
-                        // FIX: Custom App Icon Image
                         Image(
                             painter = painterResource(id = R.drawable.app_icon),
                             contentDescription = "App Icon",
-                            contentScale = ContentScale.Crop, // Keeps the image proportionally cropped inside the rounded box
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "FILA TikTok",
+                        text = "FILA SPORTS",
                         color = MaterialTheme.colorScheme.onBackground,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Black,
@@ -143,7 +142,28 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
             }
 
+            // NEW: The Founder's Mission Statement Box
             item {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "“Revolutionizing secure, offline sports entertainment. No servers. No tracking. Just the content you love, locked safely on your device.”",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontStyle = FontStyle.Italic,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
                 SectionHeader("The Developers")
             }
             items(appDevelopers) { developer ->
@@ -163,7 +183,7 @@ fun AboutScreen(onBack: () -> Unit) {
             item {
                 Spacer(modifier = Modifier.height(48.dp))
                 Text(
-                    text = "© 2026 FILA TikTok. All rights reserved.",
+                    text = "© 2026 FILA Sports. All rights reserved.",
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,

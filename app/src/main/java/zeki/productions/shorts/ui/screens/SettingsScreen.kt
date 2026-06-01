@@ -1,5 +1,6 @@
 package zeki.productions.shorts.ui.screens
 
+import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,11 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import zeki.productions.shorts.ui.theme.AppTheme
 import zeki.productions.shorts.ui.theme.ThemeManager
+import java.io.File
 
 @Composable
 fun SettingsScreen(
@@ -35,10 +39,8 @@ fun SettingsScreen(
 ) {
     val currentTheme by themeManager.currentTheme.collectAsState()
 
-    // State for the Delete Confirmation Dialog
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    // THE DELETE CONFIRMATION DIALOG
     if (showDeleteDialog) {
         Dialog(onDismissRequest = { showDeleteDialog = false }) {
             Surface(
@@ -91,15 +93,24 @@ fun SettingsScreen(
             .padding(bottom = 32.dp)
     ) {
         Text(
-            text = "Settings",
+            text = "CONTROL CENTER",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Black
         )
 
+        // NEW: Founders' Statement
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "“Revolutionizing secure, offline sports entertainment. No servers. No tracking. Just the content you love, locked safely on your device.”",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodyMedium,
+            fontStyle = FontStyle.Italic,
+            textAlign = TextAlign.Start,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(24.dp))
 
-        // THEME SELECTOR
         Text("APPEARANCE", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -185,7 +196,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "About FILA TikTok",
+                "About FILA Sports",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -194,7 +205,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
-            onClick = { showDeleteDialog = true }, // TRIGGER DIALOG INSTEAD OF INSTANT DELETE
+            onClick = { showDeleteDialog = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
