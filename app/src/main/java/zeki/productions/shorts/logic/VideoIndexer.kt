@@ -33,12 +33,10 @@ class VideoIndexer(private val dao: VideoDao) {
                     val id = fileName.substringBefore(".mp4.short")
                     discoveredIds.add(id)
 
-                    // FIX: Robust relative path parsing for deep hierarchy
                     val relPath = rootPath.relativize(file)
                     val depth = relPath.nameCount
 
-                    // Expected: Tech/MKBHD/video.mp4.short (depth = 3)
-                    // Legacy: MKBHD/video.mp4.short (depth = 2)
+                    // Depth 3 = Tech/MKBHD/video.mp4.short
                     val categoryName =
                         if (depth >= 3) relPath.getName(0).toString() else "Uncategorized"
                     val accountName = if (depth >= 3) relPath.getName(1)
@@ -46,20 +44,28 @@ class VideoIndexer(private val dao: VideoDao) {
                         .toString() else "Unknown"
 
                     val historical = ledger[id]
+                    val extracted = extractNewEntity(id, accountName, categoryName, file.toFile())
 
                     if (historical != null) {
-                        if (historical.isDeleted) {
-                            foundEntities.add(historical.copy(isDeleted = false))
+                        // FIX: Update the existing DB record with the NEW paths and categories
+                        // in case the user moved the folders, but preserve user stats (likes/views).
+                        val updatedRecord = historical.copy(
+                            accountName = extracted.accountName,
+                            categories = extracted.categories,
+                            videoPath = extracted.videoPath,
+                            imagePath = extracted.imagePath,
+                            jsonPath = extracted.jsonPath,
+                            description = extracted.description,
+                            isDeleted = false
+                        )
+
+                        // Only add to the update queue if something actually changed
+                        if (historical != updatedRecord) {
+                            foundEntities.add(updatedRecord)
                         }
                     } else {
-                        foundEntities.add(
-                            extractNewEntity(
-                                id,
-                                accountName,
-                                categoryName,
-                                file.toFile()
-                            )
-                        )
+                        // Brand new video
+                        foundEntities.add(extracted)
                     }
                 }
                 return FileVisitResult.CONTINUE
@@ -69,7 +75,7 @@ class VideoIndexer(private val dao: VideoDao) {
         val toMarkDeleted = ledger.keys.filter { it !in discoveredIds && !ledger[it]!!.isDeleted }
         Log.d(
             TAG,
-            "Indexer: Found ${foundEntities.size} to insert/restore, ${toMarkDeleted.size} to mark deleted."
+            "Indexer: Found ${foundEntities.size} to insert/update, ${toMarkDeleted.size} to mark deleted."
         )
 
         dao.syncLedger(foundEntities, toMarkDeleted)
@@ -86,7 +92,7 @@ class VideoIndexer(private val dao: VideoDao) {
         val imgFile = File(parentDir, "$id.jpg.short")
 
         var desc = "Imported Short"
-        var cats = fallbackCategory // Use folder name as default
+        var cats = fallbackCategory // Uses the new Major Category folder name
 
         if (infoFile.exists()) {
             try {
