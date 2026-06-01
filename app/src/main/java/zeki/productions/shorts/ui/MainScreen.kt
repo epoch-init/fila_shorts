@@ -36,6 +36,7 @@ import zeki.productions.shorts.ui.screens.ProfileScreen
 import zeki.productions.shorts.ui.screens.SearchScreen
 import zeki.productions.shorts.ui.screens.SettingsScreen
 import zeki.productions.shorts.ui.theme.ThemeManager
+import java.util.Random
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +52,9 @@ fun MainScreen(
     var videos by remember { mutableStateOf(emptyList<VideoEntity>()) }
     var selectedCategory by remember { mutableStateOf("All") }
 
+    // FIX: A unique seed to randomize the feed while keeping it stable during playback
+    var homeFeedSeed by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
     var showSettingsSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -65,14 +69,16 @@ fun MainScreen(
         list
     }
 
-    val filteredVideos = remember(videos, selectedCategory) {
-        when (selectedCategory) {
+    // FIX: Apply a seeded shuffle so videos load randomly per category session
+    val filteredVideos = remember(videos, selectedCategory, homeFeedSeed) {
+        val baseList = when (selectedCategory) {
             "All" -> videos
             "Favorites" -> videos.filter { it.isFavorite }
             else -> videos.filter {
                 it.categories.split(",").map { c -> c.trim() }.contains(selectedCategory)
             }
         }
+        baseList.shuffled(Random(homeFeedSeed))
     }
 
     LaunchedEffect(stableDb) {
@@ -120,7 +126,7 @@ fun MainScreen(
                 ) {
                     val items = listOf(
                         BottomNavItem.Home,
-                        BottomNavItem.Categories, // FIX: Injected Categories Tab
+                        BottomNavItem.Categories,
                         BottomNavItem.Search,
                         BottomNavItem.Settings
                     )
@@ -231,32 +237,40 @@ fun MainScreen(
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    FeedScreen(
-                        videos = filteredVideos,
-                        initialVideoId = targetId,
-                        onVideoSeen = { id ->
-                            scope.launch(Dispatchers.IO) {
-                                liveDb.videoDao().incrementViewCount(id)
+
+                    // FIX: Wrapped FeedScreen in a `key` block.
+                    // This forces the Pager to completely reset to video index 0 every time the category or seed changes!
+                    key(selectedCategory, homeFeedSeed) {
+                        FeedScreen(
+                            videos = filteredVideos,
+                            initialVideoId = targetId,
+                            onVideoSeen = { id ->
+                                scope.launch(Dispatchers.IO) {
+                                    liveDb.videoDao().incrementViewCount(id)
+                                }
+                            },
+                            onToggleFavorite = { updatedVideo ->
+                                scope.launch(Dispatchers.IO) {
+                                    liveDb.videoDao().updateVideo(updatedVideo)
+                                    onRefreshStable()
+                                }
+                            },
+                            onAccountSelected = { accountName ->
+                                navController.navigate("profile/$accountName")
                             }
-                        },
-                        onToggleFavorite = { updatedVideo ->
-                            scope.launch(Dispatchers.IO) {
-                                liveDb.videoDao().updateVideo(updatedVideo)
-                                onRefreshStable()
-                            }
-                        },
-                        onAccountSelected = { accountName ->
-                            navController.navigate("profile/$accountName")
-                        }
-                    )
+                        )
+                    }
 
                     Box(modifier = Modifier.align(Alignment.TopCenter)) {
-                        CategoryBar(categories, selectedCategory) { selectedCategory = it }
+                        CategoryBar(categories, selectedCategory) { newCategory ->
+                            selectedCategory = newCategory
+                            homeFeedSeed =
+                                System.currentTimeMillis() // Trigger a fresh random shuffle
+                        }
                     }
                 }
             }
 
-            // NEW: Categories Root Screen
             composable(BottomNavItem.Categories.route) {
                 Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                     CategoriesScreen(
@@ -268,7 +282,6 @@ fun MainScreen(
                 }
             }
 
-            // NEW: Sub-Screen showing creators within a category
             composable(
                 route = "creators/{categoryName}",
                 arguments = listOf(navArgument("categoryName") { type = NavType.StringType })
