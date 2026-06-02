@@ -59,18 +59,19 @@ fun MainScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // FIX: Global Immersive State (Hides UI when video is playing)
     var isImmersiveMode by remember { mutableStateOf(false) }
 
-    // FIX: First-Time User Experience (Swipe Tutorial)
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fila_prefs", Context.MODE_PRIVATE) }
     var showSwipeTutorial by remember { mutableStateOf(prefs.getBoolean("show_tutorial", true)) }
 
+    // Separate normal videos from the Ad Inventory
+    val adInventory = remember(videos) { videos.filter { it.isAd } }
+
     val categories = remember(videos) {
         val list = mutableListOf("All")
-        if (videos.any { it.isFavorite }) list.add("Favorites")
-        val tags = videos.flatMap { it.categories.split(",") }
+        if (videos.any { it.isFavorite && !it.isAd }) list.add("Favorites")
+        val tags = videos.filter { !it.isAd }.flatMap { it.categories.split(",") }
             .map { it.trim() }
             .filter { it.isNotBlank() && it != "All" && it != "Favorites" }
             .distinct().sorted()
@@ -79,13 +80,16 @@ fun MainScreen(
     }
 
     val filteredVideos = remember(videos, selectedCategory, homeFeedSeed) {
+        val normalVideos = videos.filter { !it.isAd }
+
         val baseList = when (selectedCategory) {
-            "All" -> videos
-            "Favorites" -> videos.filter { it.isFavorite }
-            else -> videos.filter {
+            "All" -> normalVideos
+            "Favorites" -> normalVideos.filter { it.isFavorite }
+            else -> normalVideos.filter {
                 it.categories.split(",").map { c -> c.trim() }.contains(selectedCategory)
             }
         }
+
         baseList.shuffled(Random(homeFeedSeed))
     }
 
@@ -118,7 +122,6 @@ fun MainScreen(
                 MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
             }
 
-            // FIX: Hide Bottom Navigation Bar in Immersive Mode
             AnimatedVisibility(
                 visible = !isImmersiveMode || !isVideoFeed,
                 enter = slideInVertically { it } + fadeIn(),
@@ -209,7 +212,7 @@ fun MainScreen(
                             ) {
                                 Column(modifier = Modifier.padding(24.dp)) {
                                     Text(
-                                        text = "Exit FILA TikTok?",
+                                        text = "Exit FILA Sports?",
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -254,6 +257,7 @@ fun MainScreen(
                         key(selectedCategory, homeFeedSeed) {
                             FeedScreen(
                                 videos = filteredVideos,
+                                adInventory = adInventory, // FIX: Pass isolated Ads to the feed
                                 initialVideoId = targetId,
                                 onVideoSeen = { id ->
                                     scope.launch(Dispatchers.IO) {
@@ -269,11 +273,10 @@ fun MainScreen(
                                 onAccountSelected = { accountName ->
                                     navController.navigate("profile/$accountName")
                                 },
-                                onImmersiveChange = { isImmersiveMode = it } // Pass up state
+                                onImmersiveChange = { isImmersiveMode = it }
                             )
                         }
 
-                        // FIX: Hide Category Bar in Immersive Mode
                         AnimatedVisibility(
                             visible = !isImmersiveMode,
                             enter = slideInVertically { -it } + fadeIn(),
@@ -291,7 +294,7 @@ fun MainScreen(
                 composable(BottomNavItem.Categories.route) {
                     Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                         CategoriesScreen(
-                            allVideos = videos,
+                            allVideos = videos.filter { !it.isAd },
                             onCategorySelected = { categoryName ->
                                 navController.navigate("creators/$categoryName")
                             }
@@ -307,7 +310,7 @@ fun MainScreen(
                     Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                         CreatorsScreen(
                             categoryName = categoryName,
-                            allVideos = videos,
+                            allVideos = videos.filter { !it.isAd },
                             onBack = { navController.popBackStack() },
                             onAccountSelected = { accountName ->
                                 navController.navigate("profile/$accountName")
@@ -322,7 +325,7 @@ fun MainScreen(
                 composable(BottomNavItem.Search.route) {
                     Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                         SearchScreen(
-                            videos = videos,
+                            videos = videos.filter { !it.isAd },
                             onVideoSelected = { videoId ->
                                 navController.navigate(BottomNavItem.Home.route + "?videoId=$videoId") {
                                     popUpTo(navController.graph.startDestinationId) {
@@ -372,6 +375,7 @@ fun MainScreen(
                     Box(modifier = Modifier.fillMaxSize()) {
                         FeedScreen(
                             videos = accountVideos,
+                            adInventory = adInventory, // FIX: Pass ads to sub-feed too
                             initialVideoId = targetId,
                             onVideoSeen = { id ->
                                 scope.launch(Dispatchers.IO) {
@@ -411,7 +415,7 @@ fun MainScreen(
                 composable("favorites_list") {
                     Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                         FavoritesListScreen(
-                            allVideos = videos,
+                            allVideos = videos.filter { !it.isAd },
                             onBack = { navController.popBackStack() },
                             onVideoSelected = { videoId ->
                                 navController.navigate("favorites_feed?videoId=$videoId")
@@ -429,12 +433,13 @@ fun MainScreen(
                     val targetId = backStackEntry.arguments?.getString("videoId")
 
                     val favoriteVideos = remember(videos) {
-                        videos.filter { it.isFavorite }
+                        videos.filter { it.isFavorite && !it.isAd }
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
                         FeedScreen(
                             videos = favoriteVideos,
+                            adInventory = adInventory, // FIX: Pass ads to favorites feed too
                             initialVideoId = targetId,
                             onVideoSeen = { id ->
                                 scope.launch(Dispatchers.IO) {
@@ -478,7 +483,6 @@ fun MainScreen(
                 }
             }
 
-            // FIX: Inject the FTUE (First Time User Experience) Swipe Tutorial
             if (showSwipeTutorial && videos.isNotEmpty()) {
                 SwipeTutorialOverlay(onDismiss = {
                     showSwipeTutorial = false

@@ -80,6 +80,9 @@ class ExoPlayerPool(private val context: Context) {
         isActive: Boolean,
         isAppForeground: Boolean
     ) {
+        // FIX: Ignore Image Ads (they have no video file to cache or play)
+        if (video.videoPath.isBlank()) return
+
         val cachedFile = VideoCacheManager.prepareVideo(context, video) ?: return
 
         withContext(Dispatchers.Main) {
@@ -90,13 +93,9 @@ class ExoPlayerPool(private val context: Context) {
                 player.setMediaItem(mediaItem)
                 player.prepare()
 
-                // FIX: Only set playWhenReady upon INITIAL creation.
-                // Afterwards, ShortVideoPlayer.kt handles user pauses natively.
                 player.playWhenReady = isActive && isAppForeground
-
                 activePlayers[video.id] = player
             }
-            // Removed the rogue state override that was causing the un-pause bug.
         }
     }
 

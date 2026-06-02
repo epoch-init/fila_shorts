@@ -31,16 +31,19 @@ import kotlinx.coroutines.launch
 import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.logic.ExoPlayerPool
 import zeki.productions.shorts.ui.components.VoidState
+import zeki.productions.shorts.ui.screens.AdPlayer
+import kotlin.random.Random
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FeedScreen(
     videos: List<VideoEntity>,
+    adInventory: List<VideoEntity>, // NEW: Separate pool of ads
     initialVideoId: String? = null,
     onVideoSeen: (String) -> Unit,
     onToggleFavorite: (VideoEntity) -> Unit,
     onAccountSelected: (String) -> Unit,
-    onImmersiveChange: (Boolean) -> Unit // FIX: Added immersive state callback
+    onImmersiveChange: (Boolean) -> Unit
 ) {
     if (videos.isEmpty()) {
         VoidState()
@@ -51,12 +54,40 @@ fun FeedScreen(
     val scope = rememberCoroutineScope()
     val playerPool = remember { ExoPlayerPool(context) }
     val pagerState = rememberPagerState(pageCount = { videos.size })
-    var isPagerLocked by remember { mutableStateOf(false) }
+
+    var isScrubbing by remember { mutableStateOf(false) }
+    var isAdLocked by remember { mutableStateOf(false) }
 
     var isAppForeground by remember { mutableStateOf(true) }
     val lifecycleOwner = LocalLifecycleOwner.current
-
     var showEndToast by remember { mutableStateOf(false) }
+
+    // --- ADVERTISEMENT COORDINATOR ENGINE ---
+    // Tracks how many organic swipes have occurred
+    var swipeCount by remember { mutableIntStateOf(0) }
+    var nextAdTarget by remember { mutableIntStateOf(Random.nextInt(8, 11)) } // Random 8, 9, or 10
+
+    // Holds the currently active ad (if any)
+    var activeAdOverride by remember { mutableStateOf<VideoEntity?>(null) }
+
+    // We need to know if they actually moved to a new page
+    var previousPage by remember { mutableIntStateOf(pagerState.currentPage) }
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage != previousPage) {
+            swipeCount++
+            previousPage = pagerState.currentPage
+
+            // If we hit the magic number and we actually have ads in the DB
+            if (swipeCount >= nextAdTarget && adInventory.isNotEmpty()) {
+                activeAdOverride = adInventory.random() // Pick a random ad
+                swipeCount = 0 // Reset counter
+                nextAdTarget = Random.nextInt(8, 11) // Generate new target (8 to 10)
+            } else {
+                activeAdOverride = null
+            }
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -77,7 +108,7 @@ fun FeedScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             playerPool.release()
-            onImmersiveChange(false) // Exit immersive mode when leaving feed
+            onImmersiveChange(false)
         }
     }
 
@@ -92,19 +123,28 @@ fun FeedScreen(
         videos[pagerState.currentPage].id
     } else null
 
-    LaunchedEffect(activeVideoId, isAppForeground) {
+    LaunchedEffect(activeVideoId, isAppForeground, activeAdOverride) {
         if (activeVideoId == null) return@LaunchedEffect
 
         val currentIndex = pagerState.currentPage
         val window = mutableListOf<VideoEntity>()
 
-        window.add(videos[currentIndex])
+        // Inject the active Ad into the ExoPlayer window so it pre-loads!
+        if (activeAdOverride != null) {
+            window.add(activeAdOverride!!)
+        } else {
+            window.add(videos[currentIndex])
+        }
+
         if (currentIndex > 0) window.add(videos[currentIndex - 1])
         if (currentIndex < videos.size - 1) window.add(videos[currentIndex + 1])
 
-        playerPool.updateWindow(window, activeVideoId, isAppForeground)
+        val targetId = activeAdOverride?.id ?: activeVideoId
+        playerPool.updateWindow(window, targetId, isAppForeground)
 
-        if (isAppForeground) onVideoSeen(activeVideoId)
+        if (isAppForeground && activeAdOverride == null) {
+            onVideoSeen(activeVideoId)
+        }
     }
 
     val overscrollConnection = remember {
@@ -140,29 +180,50 @@ fun FeedScreen(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             key = { index -> if (index < videos.size) videos[index].id else index },
-            userScrollEnabled = !isPagerLocked
+            userScrollEnabled = !isScrubbing && !isAdLocked
         ) { page ->
             Box(modifier = Modifier
                 .fillMaxSize()
                 .clipToBounds()) {
                 if (page < videos.size) {
-                    val video = videos[page]
-                    val player = playerPool.activePlayers[video.id]
 
-                    if (player != null) {
-                        ShortVideoPlayer(
-                            video = video,
+                    // FIX: If we are currently on the page that triggered the Ad Override, show the Ad!
+                    val isCurrentPageAndAdOverride =
+                        (page == pagerState.currentPage && activeAdOverride != null)
+                    val displayVideo =
+                        if (isCurrentPageAndAdOverride) activeAdOverride!! else videos[page]
+
+                    val player = playerPool.activePlayers[displayVideo.id]
+
+                    if (displayVideo.isAd) {
+                        LaunchedEffect(Unit) { onImmersiveChange(true) }
+
+                        AdPlayer(
+                            ad = displayVideo,
                             exoPlayer = player,
                             isActive = pagerState.currentPage == page && isAppForeground,
-                            onToggleFavorite = onToggleFavorite,
-                            onScrubbingStateChanged = { isPagerLocked = it },
-                            onAccountSelected = onAccountSelected,
-                            onImmersiveChange = onImmersiveChange // Pass to player
+                            onLockChange = { isAdLocked = it },
+                            onSkip = {
+                                // Instantly dismiss the ad override so the underlying video appears
+                                activeAdOverride = null
+                            }
                         )
                     } else {
-                        Box(Modifier
-                            .fillMaxSize()
-                            .background(Color.Black))
+                        if (player != null) {
+                            ShortVideoPlayer(
+                                video = displayVideo,
+                                exoPlayer = player,
+                                isActive = pagerState.currentPage == page && isAppForeground,
+                                onToggleFavorite = onToggleFavorite,
+                                onScrubbingStateChanged = { isScrubbing = it },
+                                onAccountSelected = onAccountSelected,
+                                onImmersiveChange = onImmersiveChange
+                            )
+                        } else {
+                            Box(Modifier
+                                .fillMaxSize()
+                                .background(Color.Black))
+                        }
                     }
                 }
             }
@@ -184,7 +245,7 @@ fun FeedScreen(
                     .padding(horizontal = 24.dp, vertical = 14.dp)
             ) {
                 Text(
-                    text = "You've caught up! No more videos.",
+                    "You've caught up! No more videos.",
                     color = Color.White,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold

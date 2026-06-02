@@ -4,10 +4,6 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * v1.8.2: Structured Entity with Composite Indices.
- * Optimized for high-speed lookups in the VerticalPager.
- */
 @Entity(
     tableName = "videos",
     indices = [
@@ -28,5 +24,7 @@ data class VideoEntity(
     val viewedCount: Int = 0,
     val isFavorite: Boolean = false,
     val isDeleted: Boolean = false,
+    val isAd: Boolean = false,
+    val adType: String = "",
     val timestamp: Long = System.currentTimeMillis()
 )
