@@ -55,7 +55,7 @@ fun ShortVideoPlayer(
     onToggleFavorite: (VideoEntity) -> Unit,
     onScrubbingStateChanged: (Boolean) -> Unit,
     onAccountSelected: (String) -> Unit,
-    onImmersiveChange: (Boolean) -> Unit
+    onPauseStateChange: (Boolean) -> Unit // FIX: State specifically tracks pauses
 ) {
     val context = LocalContext.current
     var isPausedByUser by remember { mutableStateOf(false) }
@@ -74,9 +74,7 @@ fun ShortVideoPlayer(
         } else {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
-        onDispose {
-            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
+        onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
 
     LaunchedEffect(isScrubbing) { onScrubbingStateChanged(isScrubbing) }
@@ -93,10 +91,8 @@ fun ShortVideoPlayer(
 
     LaunchedEffect(isActive, isPausedByUser) {
         exoPlayer.playWhenReady = isActive && !isPausedByUser
-    }
-
-    LaunchedEffect(isActive, isPausedByUser, isScrubbing) {
-        onImmersiveChange(isActive && !isPausedByUser && !isScrubbing)
+        // FIX: The active player guarantees the UI hides unless specifically paused.
+        if (isActive) onPauseStateChange(isPausedByUser)
     }
 
     Box(
@@ -153,8 +149,6 @@ fun ShortVideoPlayer(
             exit = fadeOut()
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-
-                // Overlay Interactions
                 VideoInteractionOverlay(
                     video = video,
                     isFavorite = localIsFavorite,
@@ -164,16 +158,15 @@ fun ShortVideoPlayer(
                     },
                     onAccountSelected = onAccountSelected
                 )
-
                 Image(
                     painter = painterResource(id = R.drawable.company_logo),
                     contentDescription = "Company Logo",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 90.dp, end = 20.dp) // Sits comfortably below the Category Bar
-                        .height(32.dp) // Keeps it elegant and non-intrusive
-                        .alpha(0.8f) // Slight transparency to blend beautifully
+                        .align(Alignment.TopCenter)
+                        .padding(top = 90.dp)
+                        .height(32.dp)
+                        .alpha(0.8f)
                 )
             }
         }
@@ -279,12 +272,8 @@ fun ShortVideoPlayer(
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun TexturePlayerView(
-    exoPlayer: ExoPlayer,
-    modifier: Modifier = Modifier
-) {
+private fun TexturePlayerView(exoPlayer: ExoPlayer, modifier: Modifier = Modifier) {
     var videoSize by remember { mutableStateOf(Pair(0, 0)) }
-
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
@@ -295,16 +284,13 @@ private fun TexturePlayerView(
             }
         }
         exoPlayer.addListener(listener)
-
         val currentSize = exoPlayer.videoSize
         if (currentSize.width > 0 && currentSize.height > 0) {
             val scaledWidth = (currentSize.width * currentSize.pixelWidthHeightRatio).toInt()
             videoSize = Pair(scaledWidth, currentSize.height)
         }
-
         onDispose { exoPlayer.removeListener(listener) }
     }
-
     key(exoPlayer) {
         AndroidView(
             factory = { context ->
@@ -316,23 +302,28 @@ private fun TexturePlayerView(
                     clipToOutline = true
                     outlineProvider = android.view.ViewOutlineProvider.BOUNDS
                     exoPlayer.setVideoTextureView(this)
-
-                    addOnLayoutChangeListener { view, left, top, right, bottom, _, _, _, _ ->
-                        val width = right - left
-                        val height = bottom - top
-                        val (vw, vh) = videoSize
-                        applyFitMatrix(view as android.view.TextureView, width, height, vw, vh)
+                    addOnLayoutChangeListener { view, l, t, r, b, _, _, _, _ ->
+                        applyFitMatrix(
+                            view as android.view.TextureView,
+                            r - l,
+                            b - t,
+                            videoSize.first,
+                            videoSize.second
+                        )
                     }
                 }
             },
             modifier = modifier.clipToBounds(),
             update = { textureView ->
-                val (vw, vh) = videoSize
-                applyFitMatrix(textureView, textureView.width, textureView.height, vw, vh)
+                applyFitMatrix(
+                    textureView,
+                    textureView.width,
+                    textureView.height,
+                    videoSize.first,
+                    videoSize.second
+                )
             },
-            onRelease = { textureView ->
-                exoPlayer.clearVideoTextureView(textureView)
-            }
+            onRelease = { exoPlayer.clearVideoTextureView(it) }
         )
     }
 }
@@ -348,10 +339,8 @@ private fun applyFitMatrix(
     val scaleX = viewWidth.toFloat() / videoWidth
     val scaleY = viewHeight.toFloat() / videoHeight
     val minScale = minOf(scaleX, scaleY)
-    val scaleCorrectionX = minScale / scaleX
-    val scaleCorrectionY = minScale / scaleY
     val matrix = android.graphics.Matrix()
-    matrix.setScale(scaleCorrectionX, scaleCorrectionY, viewWidth / 2f, viewHeight / 2f)
+    matrix.setScale(minScale / scaleX, minScale / scaleY, viewWidth / 2f, viewHeight / 2f)
     textureView.setTransform(matrix)
 }
 

@@ -2,9 +2,11 @@ package zeki.productions.shorts.ui
 
 import android.app.Activity
 import android.content.Context
+import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,12 +15,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -28,6 +37,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import zeki.productions.shorts.data.ShortsDatabase
 import zeki.productions.shorts.data.VideoEntity
+import zeki.productions.shorts.logic.ExoPlayerPool
 import zeki.productions.shorts.ui.components.CategoryBar
 import zeki.productions.shorts.ui.components.SwipeTutorialOverlay
 import zeki.productions.shorts.ui.navigation.BottomNavItem
@@ -41,6 +51,7 @@ import zeki.productions.shorts.ui.screens.SettingsScreen
 import zeki.productions.shorts.ui.theme.ThemeManager
 import java.util.Random
 
+// FIX: Exclusively use Kotlin's OptIn for Material3 here
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -59,29 +70,41 @@ fun MainScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var isImmersiveMode by remember { mutableStateOf(false) }
-
     val context = LocalContext.current
+    val playerPool = remember { ExoPlayerPool(context) }
+    var globalActiveVideo by remember { mutableStateOf<VideoEntity?>(null) }
+    var isFeedPaused by remember { mutableStateOf(false) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) playerPool.pauseAll()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            playerPool.release()
+        }
+    }
+
     val prefs = remember { context.getSharedPreferences("fila_prefs", Context.MODE_PRIVATE) }
     var showSwipeTutorial by remember { mutableStateOf(prefs.getBoolean("show_tutorial", true)) }
 
-    // Separate normal videos from the Ad Inventory
     val adInventory = remember(videos) { videos.filter { it.isAd } }
 
     val categories = remember(videos) {
         val list = mutableListOf("All")
         if (videos.any { it.isFavorite && !it.isAd }) list.add("Favorites")
-        val tags = videos.filter { !it.isAd }.flatMap { it.categories.split(",") }
+        val tags = videos.asSequence().filter { !it.isAd }.flatMap { it.categories.split(",") }
             .map { it.trim() }
             .filter { it.isNotBlank() && it != "All" && it != "Favorites" }
-            .distinct().sorted()
+            .distinct().sorted().toList()
         list.addAll(tags)
         list
     }
 
     val filteredVideos = remember(videos, selectedCategory, homeFeedSeed) {
         val normalVideos = videos.filter { !it.isAd }
-
         val baseList = when (selectedCategory) {
             "All" -> normalVideos
             "Favorites" -> normalVideos.filter { it.isFavorite }
@@ -89,7 +112,6 @@ fun MainScreen(
                 it.categories.split(",").map { c -> c.trim() }.contains(selectedCategory)
             }
         }
-
         baseList.shuffled(Random(homeFeedSeed))
     }
 
@@ -110,20 +132,17 @@ fun MainScreen(
                     currentRoute.startsWith("profile_feed") ||
                     currentRoute.startsWith("favorites_feed")
 
-            val bottomNavGradientColor = if (isVideoFeed) {
-                Color.Black.copy(alpha = 0.95f)
-            } else {
-                MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
-            }
-
-            val unselectedTint = if (isVideoFeed) {
-                Color.White.copy(alpha = 0.6f)
-            } else {
-                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-            }
+            val bottomNavGradientColor =
+                if (isVideoFeed) Color.Black.copy(alpha = 0.95f) else MaterialTheme.colorScheme.background.copy(
+                    alpha = 0.95f
+                )
+            val unselectedTint =
+                if (isVideoFeed) Color.White.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onBackground.copy(
+                    alpha = 0.5f
+                )
 
             AnimatedVisibility(
-                visible = !isImmersiveMode || !isVideoFeed,
+                visible = !isVideoFeed || isFeedPaused,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut()
             ) {
@@ -132,7 +151,10 @@ fun MainScreen(
                         .fillMaxWidth()
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, bottomNavGradientColor)
+                                colors = listOf(
+                                    Color.Transparent,
+                                    bottomNavGradientColor
+                                )
                             )
                         )
                 ) {
@@ -147,7 +169,6 @@ fun MainScreen(
                             BottomNavItem.Search,
                             BottomNavItem.Settings
                         )
-
                         items.forEach { item ->
                             NavigationBarItem(
                                 icon = { Icon(item.icon, contentDescription = null) },
@@ -219,7 +240,7 @@ fun MainScreen(
                                     )
                                     Spacer(Modifier.height(12.dp))
                                     Text(
-                                        text = "Are you sure you want to close the app?",
+                                        "Are you sure you want to close the app?",
                                         color = Color.Gray,
                                         style = MaterialTheme.typography.bodyMedium
                                     )
@@ -228,7 +249,9 @@ fun MainScreen(
                                         horizontalArrangement = Arrangement.End,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        TextButton(onClick = { showExitDialog = false }) {
+                                        TextButton(onClick = {
+                                            showExitDialog = false
+                                        }) {
                                             Text(
                                                 "Cancel",
                                                 color = Color.Gray,
@@ -257,8 +280,9 @@ fun MainScreen(
                         key(selectedCategory, homeFeedSeed) {
                             FeedScreen(
                                 videos = filteredVideos,
-                                adInventory = adInventory, // FIX: Pass isolated Ads to the feed
+                                adInventory = adInventory,
                                 initialVideoId = targetId,
+                                playerPool = playerPool,
                                 onVideoSeen = { id ->
                                     scope.launch(Dispatchers.IO) {
                                         liveDb.videoDao().incrementViewCount(id)
@@ -270,15 +294,14 @@ fun MainScreen(
                                         onRefreshStable()
                                     }
                                 },
-                                onAccountSelected = { accountName ->
-                                    navController.navigate("profile/$accountName")
-                                },
-                                onImmersiveChange = { isImmersiveMode = it }
+                                onAccountSelected = { accountName -> navController.navigate("profile/$accountName") },
+                                onPauseStateChange = { isFeedPaused = it },
+                                onActiveVideoChange = { globalActiveVideo = it }
                             )
                         }
 
                         AnimatedVisibility(
-                            visible = !isImmersiveMode,
+                            visible = isFeedPaused,
                             enter = slideInVertically { -it } + fadeIn(),
                             exit = slideOutVertically { -it } + fadeOut(),
                             modifier = Modifier.align(Alignment.TopCenter)
@@ -295,9 +318,7 @@ fun MainScreen(
                     Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                         CategoriesScreen(
                             allVideos = videos.filter { !it.isAd },
-                            onCategorySelected = { categoryName ->
-                                navController.navigate("creators/$categoryName")
-                            }
+                            onCategorySelected = { categoryName -> navController.navigate("creators/$categoryName") }
                         )
                     }
                 }
@@ -312,12 +333,8 @@ fun MainScreen(
                             categoryName = categoryName,
                             allVideos = videos.filter { !it.isAd },
                             onBack = { navController.popBackStack() },
-                            onAccountSelected = { accountName ->
-                                navController.navigate("profile/$accountName")
-                            },
-                            onVideoSelected = { accountName, videoId ->
-                                navController.navigate("profile_feed/$accountName?videoId=$videoId")
-                            }
+                            onAccountSelected = { accountName -> navController.navigate("profile/$accountName") },
+                            onVideoSelected = { accountName, videoId -> navController.navigate("profile_feed/$accountName?videoId=$videoId") }
                         )
                     }
                 }
@@ -334,9 +351,7 @@ fun MainScreen(
                                     launchSingleTop = true
                                 }
                             },
-                            onAccountSelected = { accountName ->
-                                navController.navigate("profile/$accountName")
-                            }
+                            onAccountSelected = { accountName -> navController.navigate("profile/$accountName") }
                         )
                     }
                 }
@@ -351,9 +366,7 @@ fun MainScreen(
                             accountName = accountName,
                             allVideos = videos,
                             onBack = { navController.popBackStack() },
-                            onVideoSelected = { videoId ->
-                                navController.navigate("profile_feed/$accountName?videoId=$videoId")
-                            }
+                            onVideoSelected = { videoId -> navController.navigate("profile_feed/$accountName?videoId=$videoId") }
                         )
                     }
                 }
@@ -367,16 +380,21 @@ fun MainScreen(
                 ) { backStackEntry ->
                     val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
                     val targetId = backStackEntry.arguments?.getString("videoId")
-
                     val accountVideos = remember(videos, accountName) {
-                        videos.filter { it.accountName.equals(accountName, ignoreCase = true) }
+                        videos.filter {
+                            it.accountName.equals(
+                                accountName,
+                                ignoreCase = true
+                            )
+                        }
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
                         FeedScreen(
                             videos = accountVideos,
-                            adInventory = adInventory, // FIX: Pass ads to sub-feed too
+                            adInventory = adInventory,
                             initialVideoId = targetId,
+                            playerPool = playerPool,
                             onVideoSeen = { id ->
                                 scope.launch(Dispatchers.IO) {
                                     liveDb.videoDao().incrementViewCount(id)
@@ -389,11 +407,12 @@ fun MainScreen(
                                 }
                             },
                             onAccountSelected = { navController.popBackStack() },
-                            onImmersiveChange = { isImmersiveMode = it }
+                            onPauseStateChange = { isFeedPaused = it },
+                            onActiveVideoChange = { globalActiveVideo = it }
                         )
 
                         AnimatedVisibility(
-                            visible = !isImmersiveMode,
+                            visible = isFeedPaused,
                             enter = fadeIn(), exit = fadeOut(),
                             modifier = Modifier
                                 .align(Alignment.TopStart)
@@ -417,9 +436,7 @@ fun MainScreen(
                         FavoritesListScreen(
                             allVideos = videos.filter { !it.isAd },
                             onBack = { navController.popBackStack() },
-                            onVideoSelected = { videoId ->
-                                navController.navigate("favorites_feed?videoId=$videoId")
-                            }
+                            onVideoSelected = { videoId -> navController.navigate("favorites_feed?videoId=$videoId") }
                         )
                     }
                 }
@@ -431,16 +448,15 @@ fun MainScreen(
                     })
                 ) { backStackEntry ->
                     val targetId = backStackEntry.arguments?.getString("videoId")
-
-                    val favoriteVideos = remember(videos) {
-                        videos.filter { it.isFavorite && !it.isAd }
-                    }
+                    val favoriteVideos =
+                        remember(videos) { videos.filter { it.isFavorite && !it.isAd } }
 
                     Box(modifier = Modifier.fillMaxSize()) {
                         FeedScreen(
                             videos = favoriteVideos,
-                            adInventory = adInventory, // FIX: Pass ads to favorites feed too
+                            adInventory = adInventory,
                             initialVideoId = targetId,
+                            playerPool = playerPool,
                             onVideoSeen = { id ->
                                 scope.launch(Dispatchers.IO) {
                                     liveDb.videoDao().incrementViewCount(id)
@@ -452,14 +468,13 @@ fun MainScreen(
                                     onRefreshStable()
                                 }
                             },
-                            onAccountSelected = { accountName ->
-                                navController.navigate("profile/$accountName")
-                            },
-                            onImmersiveChange = { isImmersiveMode = it }
+                            onAccountSelected = { accountName -> navController.navigate("profile/$accountName") },
+                            onPauseStateChange = { isFeedPaused = it },
+                            onActiveVideoChange = { globalActiveVideo = it }
                         )
 
                         AnimatedVisibility(
-                            visible = !isImmersiveMode,
+                            visible = isFeedPaused,
                             enter = fadeIn(), exit = fadeOut(),
                             modifier = Modifier
                                 .align(Alignment.TopStart)
@@ -480,6 +495,43 @@ fun MainScreen(
 
                 composable("about") {
                     AboutScreen(onBack = { navController.popBackStack() })
+                }
+            }
+
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentRoute = navBackStackEntry?.destination?.route ?: ""
+            val isVideoFeed =
+                currentRoute.startsWith(BottomNavItem.Home.route) || currentRoute.startsWith("profile_feed") || currentRoute.startsWith(
+                    "favorites_feed"
+                )
+
+            AnimatedVisibility(
+                visible = !isVideoFeed && globalActiveVideo != null && !isFeedPaused,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = innerPadding.calculateBottomPadding() + 16.dp, end = 16.dp)
+            ) {
+                globalActiveVideo?.let { pipVid ->
+                    val player = playerPool.activePlayers[pipVid.id]
+                    if (player != null) {
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = CardDefaults.cardElevation(8.dp),
+                            modifier = Modifier
+                                .width(100.dp)
+                                .aspectRatio(9f / 16f)
+                                .clickable {
+                                    navController.navigate(BottomNavItem.Home.route + "?videoId=${pipVid.id}") {
+                                        popUpTo(navController.graph.startDestinationId)
+                                        launchSingleTop = true
+                                    }
+                                }
+                        ) {
+                            PiPTexturePlayerView(player, Modifier.fillMaxSize())
+                        }
+                    }
                 }
             }
 
@@ -520,4 +572,72 @@ fun MainScreen(
             }
         }
     }
+}
+
+// FIX: Exclusively apply AndroidX OptIn for UnstableApi directly to the ExoPlayer integration
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun PiPTexturePlayerView(exoPlayer: ExoPlayer, modifier: Modifier = Modifier) {
+    var videoSize by remember { mutableStateOf(Pair(0, 0)) }
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
+                if (size.width > 0 && size.height > 0) {
+                    videoSize = Pair((size.width * size.pixelWidthHeightRatio).toInt(), size.height)
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose { exoPlayer.removeListener(listener) }
+    }
+    key(exoPlayer) {
+        AndroidView(
+            factory = { context ->
+                android.view.TextureView(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    clipToOutline = true
+                    exoPlayer.setVideoTextureView(this)
+                    addOnLayoutChangeListener { view, l, t, r, b, _, _, _, _ ->
+                        applyFitMatrix(
+                            view as android.view.TextureView,
+                            r - l,
+                            b - t,
+                            videoSize.first,
+                            videoSize.second
+                        )
+                    }
+                }
+            },
+            modifier = modifier.clipToBounds(),
+            update = { textureView ->
+                applyFitMatrix(
+                    textureView,
+                    textureView.width,
+                    textureView.height,
+                    videoSize.first,
+                    videoSize.second
+                )
+            },
+            onRelease = { exoPlayer.clearVideoTextureView(it) }
+        )
+    }
+}
+
+private fun applyFitMatrix(
+    textureView: android.view.TextureView,
+    viewWidth: Int,
+    viewHeight: Int,
+    videoWidth: Int,
+    videoHeight: Int
+) {
+    if (viewWidth == 0 || viewHeight == 0 || videoWidth == 0 || videoHeight == 0) return
+    val scaleX = viewWidth.toFloat() / videoWidth
+    val scaleY = viewHeight.toFloat() / videoHeight
+    val minScale = minOf(scaleX, scaleY)
+    val matrix = android.graphics.Matrix()
+    matrix.setScale(minScale / scaleX, minScale / scaleY, viewWidth / 2f, viewHeight / 2f)
+    textureView.setTransform(matrix)
 }
