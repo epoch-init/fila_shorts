@@ -34,25 +34,20 @@ fun AdPlayer(
     ad: VideoEntity,
     exoPlayer: ExoPlayer?,
     isActive: Boolean,
-    onLockChange: (Boolean) -> Unit,
     onSkip: () -> Unit
 ) {
     var timeLeft by remember { mutableIntStateOf(5) }
 
-    // Countdown Timer Logic
     LaunchedEffect(isActive) {
         if (isActive) {
-            onLockChange(true) // Lock Pager
             timeLeft = 5
             while (timeLeft > 0) {
                 delay(1000)
                 timeLeft--
             }
-            onLockChange(false) // Unlock Pager
         }
     }
 
-    // Play/Pause Video Ad based on active state
     LaunchedEffect(isActive) {
         exoPlayer?.playWhenReady = isActive
     }
@@ -61,7 +56,6 @@ fun AdPlayer(
         .fillMaxSize()
         .background(Color.Black)) {
 
-        // --- 1. RENDER AD MEDIA ---
         if (ad.adType == "image") {
             var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
             LaunchedEffect(ad.id) {
@@ -80,7 +74,6 @@ fun AdPlayer(
             AdTexturePlayerView(exoPlayer, Modifier.fillMaxSize())
         }
 
-        // --- 2. ADVERTISEMENT BADGE ---
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -88,7 +81,7 @@ fun AdPlayer(
                 .padding(16.dp)
                 .padding(bottom = 100.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFFEAB308)) // Yellow Ad Badge
+                .background(Color(0xFFEAB308))
                 .padding(horizontal = 8.dp, vertical = 4.dp)
         ) {
             Text(
@@ -99,7 +92,6 @@ fun AdPlayer(
             )
         }
 
-        // --- 3. SKIP BUTTON ---
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -119,7 +111,6 @@ fun AdPlayer(
     }
 }
 
-// Reusable TextureView specifically for the AdPlayer
 @OptIn(UnstableApi::class)
 @Composable
 private fun AdTexturePlayerView(exoPlayer: ExoPlayer, modifier: Modifier = Modifier) {

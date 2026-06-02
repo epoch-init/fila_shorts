@@ -16,7 +16,9 @@ import zeki.productions.shorts.data.VideoEntity
 @OptIn(UnstableApi::class)
 class ExoPlayerPool(private val context: Context) {
     private val TAG = "GEMINI_DEBUG"
-    private val poolSize = 3
+
+    // FIX: Increased to 5 to safely buffer Previous, Current, Next + Ads without starving.
+    private val poolSize = 5
 
     val activePlayers = mutableStateMapOf<String, ExoPlayer>()
     private val availablePlayers = ArrayDeque<ExoPlayer>()
@@ -80,7 +82,6 @@ class ExoPlayerPool(private val context: Context) {
         isActive: Boolean,
         isAppForeground: Boolean
     ) {
-        // FIX: Ignore Image Ads (they have no video file to cache or play)
         if (video.videoPath.isBlank()) return
 
         val cachedFile = VideoCacheManager.prepareVideo(context, video) ?: return
@@ -95,6 +96,8 @@ class ExoPlayerPool(private val context: Context) {
 
                 player.playWhenReady = isActive && isAppForeground
                 activePlayers[video.id] = player
+            } else if (isActive) {
+                activePlayers[video.id]?.playWhenReady = isAppForeground
             }
         }
     }
