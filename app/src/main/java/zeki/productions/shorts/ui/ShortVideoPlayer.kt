@@ -163,8 +163,8 @@ fun ShortVideoPlayer(
                     contentDescription = "Company Logo",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 90.dp)
+                        .align(Alignment.TopEnd)
+                        .padding(top = 90.dp, end=20.dp)
                         .height(32.dp)
                         .alpha(0.8f)
                 )

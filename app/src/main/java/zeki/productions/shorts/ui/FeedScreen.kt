@@ -41,12 +41,11 @@ fun FeedScreen(
     videos: List<VideoEntity>,
     adInventory: List<VideoEntity>,
     initialVideoId: String? = null,
-    playerPool: ExoPlayerPool, // FIX: Injected Player Pool
+    playerPool: ExoPlayerPool,
     onVideoSeen: (String) -> Unit,
     onToggleFavorite: (VideoEntity) -> Unit,
     onAccountSelected: (String) -> Unit,
-    onPauseStateChange: (Boolean) -> Unit, // FIX: Direct Pause State
-    onActiveVideoChange: (VideoEntity?) -> Unit // FIX: Broadcast active video for PiP
+    onPauseStateChange: (Boolean) -> Unit // FIX: Removed onActiveVideoChange
 ) {
     if (videos.isEmpty()) {
         VoidState()
@@ -90,7 +89,7 @@ fun FeedScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             onPauseStateChange(false)
-            onActiveVideoChange(null) // Clear PiP tracking when feed is destroyed
+            // FIX: Removed PiP tracking cleanup
         }
     }
 
@@ -123,8 +122,7 @@ fun FeedScreen(
         val targetVideo = activeAdOverride ?: baseVideo
         playerPool.updateWindow(window, targetVideo.id, isAppForeground)
 
-        // Broadcast the currently playing video to MainScreen for PiP tracking
-        onActiveVideoChange(targetVideo)
+        // FIX: Removed PiP active video broadcast
 
         if (isAppForeground && activeAdOverride == null) {
             onVideoSeen(activeVideoId)
@@ -200,7 +198,7 @@ fun FeedScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) { detectTapGestures { } }) {
-                    LaunchedEffect(Unit) { onPauseStateChange(false) } // Force hide UI for ad
+                    LaunchedEffect(Unit) { onPauseStateChange(false) }
                     AdPlayer(
                         ad = activeAdOverride!!,
                         exoPlayer = player,

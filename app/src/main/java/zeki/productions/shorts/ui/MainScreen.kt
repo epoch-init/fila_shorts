@@ -2,11 +2,9 @@ package zeki.productions.shorts.ui
 
 import android.app.Activity
 import android.content.Context
-import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,19 +13,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -51,7 +45,6 @@ import zeki.productions.shorts.ui.screens.SettingsScreen
 import zeki.productions.shorts.ui.theme.ThemeManager
 import java.util.Random
 
-// FIX: Exclusively use Kotlin's OptIn for Material3 here
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -72,7 +65,6 @@ fun MainScreen(
 
     val context = LocalContext.current
     val playerPool = remember { ExoPlayerPool(context) }
-    var globalActiveVideo by remember { mutableStateOf<VideoEntity?>(null) }
     var isFeedPaused by remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -95,10 +87,10 @@ fun MainScreen(
     val categories = remember(videos) {
         val list = mutableListOf("All")
         if (videos.any { it.isFavorite && !it.isAd }) list.add("Favorites")
-        val tags = videos.asSequence().filter { !it.isAd }.flatMap { it.categories.split(",") }
+        val tags = videos.filter { !it.isAd }.flatMap { it.categories.split(",") }
             .map { it.trim() }
             .filter { it.isNotBlank() && it != "All" && it != "Favorites" }
-            .distinct().sorted().toList()
+            .distinct().sorted()
         list.addAll(tags)
         list
     }
@@ -295,8 +287,7 @@ fun MainScreen(
                                     }
                                 },
                                 onAccountSelected = { accountName -> navController.navigate("profile/$accountName") },
-                                onPauseStateChange = { isFeedPaused = it },
-                                onActiveVideoChange = { globalActiveVideo = it }
+                                onPauseStateChange = { isFeedPaused = it }
                             )
                         }
 
@@ -407,8 +398,7 @@ fun MainScreen(
                                 }
                             },
                             onAccountSelected = { navController.popBackStack() },
-                            onPauseStateChange = { isFeedPaused = it },
-                            onActiveVideoChange = { globalActiveVideo = it }
+                            onPauseStateChange = { isFeedPaused = it }
                         )
 
                         AnimatedVisibility(
@@ -469,8 +459,7 @@ fun MainScreen(
                                 }
                             },
                             onAccountSelected = { accountName -> navController.navigate("profile/$accountName") },
-                            onPauseStateChange = { isFeedPaused = it },
-                            onActiveVideoChange = { globalActiveVideo = it }
+                            onPauseStateChange = { isFeedPaused = it }
                         )
 
                         AnimatedVisibility(
@@ -495,43 +484,6 @@ fun MainScreen(
 
                 composable("about") {
                     AboutScreen(onBack = { navController.popBackStack() })
-                }
-            }
-
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = navBackStackEntry?.destination?.route ?: ""
-            val isVideoFeed =
-                currentRoute.startsWith(BottomNavItem.Home.route) || currentRoute.startsWith("profile_feed") || currentRoute.startsWith(
-                    "favorites_feed"
-                )
-
-            AnimatedVisibility(
-                visible = !isVideoFeed && globalActiveVideo != null && !isFeedPaused,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = innerPadding.calculateBottomPadding() + 16.dp, end = 16.dp)
-            ) {
-                globalActiveVideo?.let { pipVid ->
-                    val player = playerPool.activePlayers[pipVid.id]
-                    if (player != null) {
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(8.dp),
-                            modifier = Modifier
-                                .width(100.dp)
-                                .aspectRatio(9f / 16f)
-                                .clickable {
-                                    navController.navigate(BottomNavItem.Home.route + "?videoId=${pipVid.id}") {
-                                        popUpTo(navController.graph.startDestinationId)
-                                        launchSingleTop = true
-                                    }
-                                }
-                        ) {
-                            PiPTexturePlayerView(player, Modifier.fillMaxSize())
-                        }
-                    }
                 }
             }
 
@@ -572,72 +524,4 @@ fun MainScreen(
             }
         }
     }
-}
-
-// FIX: Exclusively apply AndroidX OptIn for UnstableApi directly to the ExoPlayer integration
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-@Composable
-private fun PiPTexturePlayerView(exoPlayer: ExoPlayer, modifier: Modifier = Modifier) {
-    var videoSize by remember { mutableStateOf(Pair(0, 0)) }
-    DisposableEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
-                if (size.width > 0 && size.height > 0) {
-                    videoSize = Pair((size.width * size.pixelWidthHeightRatio).toInt(), size.height)
-                }
-            }
-        }
-        exoPlayer.addListener(listener)
-        onDispose { exoPlayer.removeListener(listener) }
-    }
-    key(exoPlayer) {
-        AndroidView(
-            factory = { context ->
-                android.view.TextureView(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    clipToOutline = true
-                    exoPlayer.setVideoTextureView(this)
-                    addOnLayoutChangeListener { view, l, t, r, b, _, _, _, _ ->
-                        applyFitMatrix(
-                            view as android.view.TextureView,
-                            r - l,
-                            b - t,
-                            videoSize.first,
-                            videoSize.second
-                        )
-                    }
-                }
-            },
-            modifier = modifier.clipToBounds(),
-            update = { textureView ->
-                applyFitMatrix(
-                    textureView,
-                    textureView.width,
-                    textureView.height,
-                    videoSize.first,
-                    videoSize.second
-                )
-            },
-            onRelease = { exoPlayer.clearVideoTextureView(it) }
-        )
-    }
-}
-
-private fun applyFitMatrix(
-    textureView: android.view.TextureView,
-    viewWidth: Int,
-    viewHeight: Int,
-    videoWidth: Int,
-    videoHeight: Int
-) {
-    if (viewWidth == 0 || viewHeight == 0 || videoWidth == 0 || videoHeight == 0) return
-    val scaleX = viewWidth.toFloat() / videoWidth
-    val scaleY = viewHeight.toFloat() / videoHeight
-    val minScale = minOf(scaleX, scaleY)
-    val matrix = android.graphics.Matrix()
-    matrix.setScale(minScale / scaleX, minScale / scaleY, viewWidth / 2f, viewHeight / 2f)
-    textureView.setTransform(matrix)
 }
