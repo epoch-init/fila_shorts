@@ -68,6 +68,9 @@ fun MainScreen(
     val playerPool = remember { ExoPlayerPool(context) }
     var isFeedPaused by remember { mutableStateOf(false) }
 
+    // FIX: Hoisted video deletion state so it works globally across all feeds
+    var videoToDelete by remember { mutableStateOf<VideoEntity?>(null) }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -215,7 +218,6 @@ fun MainScreen(
                     val targetId = backStackEntry.arguments?.getString("videoId")
 
                     var showExitDialog by remember { mutableStateOf(false) }
-                    var videoToDelete by remember { mutableStateOf<VideoEntity?>(null) }
                     BackHandler { showExitDialog = true }
 
                     if (showExitDialog) {
@@ -270,70 +272,6 @@ fun MainScreen(
                         }
                     }
 
-                    // Single Deletion Confirmation Dialog
-                    if (videoToDelete != null) {
-                        Dialog(onDismissRequest = { videoToDelete = null }) {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                tonalElevation = 8.dp
-                            ) {
-                                Column(modifier = Modifier.padding(24.dp)) {
-                                    Text(
-                                        "Delete Permanently?",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                    Spacer(Modifier.height(12.dp))
-                                    Text(
-                                        "This will delete the file from your device completely.",
-                                        color = Color.Gray,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Spacer(Modifier.height(32.dp))
-                                    Row(
-                                        horizontalArrangement = Arrangement.End,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        TextButton(onClick = {
-                                            videoToDelete = null
-                                        }) {
-                                            Text(
-                                                "Cancel",
-                                                color = Color.Gray,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        Spacer(Modifier.width(8.dp))
-                                        Button(
-                                            onClick = {
-                                                scope.launch(Dispatchers.IO) {
-                                                    FileOpsManager.deleteSingleVideo(
-                                                        context,
-                                                        videoToDelete!!
-                                                    )
-                                                    liveDb.videoDao()
-                                                        .markAsDeleted(videoToDelete!!.id)
-                                                    onRefreshStable()
-                                                }
-                                                videoToDelete = null
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                            shape = RoundedCornerShape(8.dp)
-                                        ) {
-                                            Text(
-                                                "Delete",
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     Box(modifier = Modifier.fillMaxSize()) {
                         key(selectedCategory, homeFeedSeed) {
                             FeedScreen(
@@ -348,7 +286,6 @@ fun MainScreen(
                                 },
                                 onToggleFavorite = { updatedVideo ->
                                     scope.launch(Dispatchers.IO) {
-                                        // Save/Remove from internal storage cache
                                         FileOpsManager.syncFavoriteStorage(
                                             context,
                                             updatedVideo,
@@ -525,13 +462,7 @@ fun MainScreen(
                                     ).show()
                                 }
                             },
-                            onDeleteVideo = { video ->
-                                scope.launch(Dispatchers.IO) {
-                                    FileOpsManager.deleteSingleVideo(context, video)
-                                    liveDb.videoDao().markAsDeleted(video.id)
-                                    onRefreshStable()
-                                }
-                            }
+                            onDeleteVideo = { video -> videoToDelete = video }
                         )
 
                         AnimatedVisibility(
@@ -618,13 +549,7 @@ fun MainScreen(
                                     ).show()
                                 }
                             },
-                            onDeleteVideo = { video ->
-                                scope.launch(Dispatchers.IO) {
-                                    FileOpsManager.deleteSingleVideo(context, video)
-                                    liveDb.videoDao().markAsDeleted(video.id)
-                                    onRefreshStable()
-                                }
-                            }
+                            onDeleteVideo = { video -> videoToDelete = video }
                         )
 
                         AnimatedVisibility(
@@ -649,6 +574,67 @@ fun MainScreen(
 
                 composable("about") {
                     AboutScreen(onBack = { navController.popBackStack() })
+                }
+            }
+
+            // FIX: Global Single-Video Deletion Dialog
+            if (videoToDelete != null) {
+                Dialog(onDismissRequest = { videoToDelete = null }) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 8.dp
+                    ) {
+                        Column(modifier = Modifier.padding(24.dp)) {
+                            Text(
+                                "Delete Permanently?",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "This will delete the file from your device completely.",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(Modifier.height(32.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                TextButton(onClick = { videoToDelete = null }) {
+                                    Text(
+                                        "Cancel",
+                                        color = Color.Gray,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        val target = videoToDelete // Capture safely
+                                        videoToDelete = null // Dismiss instantly
+                                        if (target != null) {
+                                            scope.launch(Dispatchers.IO) {
+                                                FileOpsManager.deleteSingleVideo(context, target)
+                                                liveDb.videoDao().markAsDeleted(target.id)
+                                                onRefreshStable()
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        "Delete",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
