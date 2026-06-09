@@ -5,10 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,7 +24,19 @@ fun CategoryBar(
     selectedCategory: String,
     onCategorySelected: (String) -> Unit
 ) {
+    // FIX: Remember the scroll state to snap to the selected category
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(selectedCategory, categories) {
+        val index = categories.indexOf(selectedCategory)
+        if (index >= 0) {
+            // Smoothly scroll the selected item into view
+            listState.animateScrollToItem(index)
+        }
+    }
+
     LazyRow(
+        state = listState,
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
@@ -39,7 +53,7 @@ fun CategoryBar(
                     .clip(CircleShape)
                     .background(
                         if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
-                        else Color.DarkGray.copy(alpha = 0.7f)
+                        else Color.Black.copy(alpha = 0.4f)
                     )
                     .clickable { onCategorySelected(category) }
                     .padding(horizontal = 16.dp, vertical = 8.dp),

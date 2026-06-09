@@ -2,6 +2,7 @@ package zeki.productions.shorts.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,9 +81,13 @@ fun VideoInteractionOverlay(
                 )
             }
 
+            // FIX: Add pointerInput interceptor to absorb any stray taps around the icons
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.pointerInput(Unit) {
+                    detectTapGestures { /* Absorbs clicks so they don't fall through to the unpause listener */ }
+                }
             ) {
                 if (video.viewedCount > 0) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
