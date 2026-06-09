@@ -39,7 +39,7 @@ fun CategoryBar(
                     .clip(CircleShape)
                     .background(
                         if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
-                        else Color.Black.copy(alpha = 0.4f)
+                        else Color.DarkGray.copy(alpha = 0.7f)
                     )
                     .clickable { onCategorySelected(category) }
                     .padding(horizontal = 16.dp, vertical = 8.dp),

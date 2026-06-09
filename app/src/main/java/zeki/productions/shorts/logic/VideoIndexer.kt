@@ -14,7 +14,7 @@ class VideoIndexer(private val dao: VideoDao) {
     private val TAG = "GEMINI_DEBUG"
 
     suspend fun sync() {
-        val rootPath = Paths.get(Environment.getExternalStorageDirectory().absolutePath, "Shorts")
+        val rootPath = Paths.get(Environment.getExternalStorageDirectory().absolutePath, "FILA TikTok")
         Log.d(TAG, "Indexer: Starting NIO walk at $rootPath")
 
         if (!Files.exists(rootPath)) {

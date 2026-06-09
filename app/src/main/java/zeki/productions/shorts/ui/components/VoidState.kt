@@ -33,7 +33,7 @@ fun VoidState() {
         ) {
             RadarScanner()
             Spacer(modifier = Modifier.height(40.dp))
-            TypewriterText("Scanning encrypted files...\nNo .short files detected in /Shorts.")
+            TypewriterText("Scanning...\nNo .short files detected in\n /FILA TikTok.")
         }
     }
 }

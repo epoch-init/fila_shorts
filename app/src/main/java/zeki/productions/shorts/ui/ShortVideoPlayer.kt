@@ -143,6 +143,19 @@ fun ShortVideoPlayer(
             }
         )
 
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(id = R.drawable.company_logo),
+                contentDescription = "Company Logo",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 90.dp, end=20.dp)
+                    .height(32.dp)
+                    .alpha(0.8f)
+            )
+        }
+
         AnimatedVisibility(
             visible = isPausedByUser,
             enter = fadeIn(),
@@ -157,16 +170,6 @@ fun ShortVideoPlayer(
                         onToggleFavorite(video.copy(isFavorite = localIsFavorite))
                     },
                     onAccountSelected = onAccountSelected
-                )
-                Image(
-                    painter = painterResource(id = R.drawable.company_logo),
-                    contentDescription = "Company Logo",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 90.dp, end=20.dp)
-                        .height(32.dp)
-                        .alpha(0.8f)
                 )
             }
         }
