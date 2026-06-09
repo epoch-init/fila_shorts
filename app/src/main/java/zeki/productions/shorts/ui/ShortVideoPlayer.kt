@@ -56,11 +56,10 @@ fun ShortVideoPlayer(
     onScrubbingStateChanged: (Boolean) -> Unit,
     onAccountSelected: (String) -> Unit,
     onPauseStateChange: (Boolean) -> Unit,
-    onExportVideo: (VideoEntity) -> Unit, // NEW
-    onDeleteVideo: (VideoEntity) -> Unit  // NEW
+    onExportVideo: (VideoEntity) -> Unit,
+    onDeleteVideo: (VideoEntity) -> Unit
 ) {
     val context = LocalContext.current
-    var isPausedByUser by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     var isScrubbing by remember { mutableStateOf(false) }
 
@@ -69,9 +68,27 @@ fun ShortVideoPlayer(
 
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    DisposableEffect(isActive, isPausedByUser) {
+    // FIX: Single Source of Truth for Playback State directly from ExoPlayer
+    var isPlaying by remember { mutableStateOf(exoPlayer.isPlaying) }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+                onPauseStateChange(!playing)
+            }
+        }
+        exoPlayer.addListener(listener)
+        // Set initial state
+        isPlaying = exoPlayer.isPlaying
+        onPauseStateChange(!exoPlayer.isPlaying)
+
+        onDispose { exoPlayer.removeListener(listener) }
+    }
+
+    DisposableEffect(isPlaying) {
         val activity = context as? Activity
-        if (isActive && !isPausedByUser) {
+        if (isPlaying) {
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -91,9 +108,13 @@ fun ShortVideoPlayer(
         }
     }
 
-    LaunchedEffect(isActive, isPausedByUser) {
-        exoPlayer.playWhenReady = isActive && !isPausedByUser
-        if (isActive) onPauseStateChange(isPausedByUser)
+    // Only force play/pause if the overall feed active state changes
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            exoPlayer.play()
+        } else {
+            exoPlayer.pause()
+        }
     }
 
     Box(
@@ -113,7 +134,7 @@ fun ShortVideoPlayer(
                 detectTapGestures(
                     onTap = {
                         HapticManager.tick(context)
-                        isPausedByUser = !isPausedByUser
+                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
                     },
                     onDoubleTap = { offset ->
                         HapticManager.tick(context)
@@ -144,26 +165,25 @@ fun ShortVideoPlayer(
             }
         )
 
-        // RESTORED USER'S LOGO PLACEMENT
-        Box(modifier = Modifier.fillMaxSize()) {
-            Image(
-                painter = painterResource(id = R.drawable.company_logo),
-                contentDescription = "Company Logo",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 90.dp, end = 20.dp)
-                    .height(32.dp)
-                    .alpha(0.8f)
-            )
-        }
-
+        // Show UI specifically when the player is NOT playing
         AnimatedVisibility(
-            visible = isPausedByUser,
+            visible = !isPlaying,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
+
+                Image(
+                    painter = painterResource(id = R.drawable.company_logo),
+                    contentDescription = "Company Logo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 90.dp, end = 20.dp)
+                        .height(32.dp)
+                        .alpha(0.8f)
+                )
+
                 VideoInteractionOverlay(
                     video = video,
                     isFavorite = localIsFavorite,
@@ -175,28 +195,22 @@ fun ShortVideoPlayer(
                     onExportVideo = { onExportVideo(video) },
                     onDeleteVideo = { onDeleteVideo(video) }
                 )
-            }
-        }
 
-        AnimatedVisibility(
-            visible = isPausedByUser && !isScrubbing,
-            enter = scaleIn(initialScale = 1.5f) + fadeIn(),
-            exit = scaleOut(targetScale = 0.8f) + fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.4f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.PlayArrow,
-                    contentDescription = "Paused",
-                    tint = Color.White,
-                    modifier = Modifier.size(48.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = "Paused",
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
             }
         }
 
@@ -235,8 +249,9 @@ fun ShortVideoPlayer(
             }
         }
 
+        // Show scrubber if actively scrubbing or paused
         AnimatedVisibility(
-            visible = isPausedByUser || isScrubbing,
+            visible = !isPlaying || isScrubbing,
             enter = slideInVertically { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier.align(Alignment.BottomStart)

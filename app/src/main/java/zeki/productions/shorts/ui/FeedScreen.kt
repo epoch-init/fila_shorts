@@ -46,8 +46,8 @@ fun FeedScreen(
     onToggleFavorite: (VideoEntity) -> Unit,
     onAccountSelected: (String) -> Unit,
     onPauseStateChange: (Boolean) -> Unit,
-    onExportVideo: (VideoEntity) -> Unit, // NEW
-    onDeleteVideo: (VideoEntity) -> Unit  // NEW
+    onExportVideo: (VideoEntity) -> Unit,
+    onDeleteVideo: (VideoEntity) -> Unit
 ) {
     if (videos.isEmpty()) {
         VoidState()
@@ -81,11 +81,22 @@ fun FeedScreen(
         }
     }
 
+    // FIX: Force Play/Pause on System Lifecycle events
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE) isAppForeground = false
-            if (event == Lifecycle.Event.ON_RESUME) isAppForeground = true
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                isAppForeground = false
+                playerPool.pauseAll()
+            }
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isAppForeground = true
+                // Force the active player to resume when opening the app
+                if (videos.isNotEmpty() && pagerState.currentPage < videos.size) {
+                    val currentId = activeAdOverride?.id ?: videos[pagerState.currentPage].id
+                    playerPool.activePlayers[currentId]?.play()
+                }
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
