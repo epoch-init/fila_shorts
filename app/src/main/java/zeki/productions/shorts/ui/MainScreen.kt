@@ -2,10 +2,10 @@ package zeki.productions.shorts.ui
 
 import android.app.Activity
 import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,7 +24,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +32,7 @@ import kotlinx.coroutines.launch
 import zeki.productions.shorts.data.ShortsDatabase
 import zeki.productions.shorts.data.VideoEntity
 import zeki.productions.shorts.logic.ExoPlayerPool
+import zeki.productions.shorts.logic.FileOpsManager
 import zeki.productions.shorts.ui.components.CategoryBar
 import zeki.productions.shorts.ui.components.SwipeTutorialOverlay
 import zeki.productions.shorts.ui.navigation.BottomNavItem
@@ -209,12 +209,13 @@ fun MainScreen(
                 composable(
                     route = BottomNavItem.Home.route + "?videoId={videoId}",
                     arguments = listOf(navArgument("videoId") {
-                        defaultValue = ""; type = NavType.StringType
+                        defaultValue = ""; type = androidx.navigation.NavType.StringType
                     })
                 ) { backStackEntry ->
                     val targetId = backStackEntry.arguments?.getString("videoId")
 
                     var showExitDialog by remember { mutableStateOf(false) }
+                    var videoToDelete by remember { mutableStateOf<VideoEntity?>(null) }
                     BackHandler { showExitDialog = true }
 
                     if (showExitDialog) {
@@ -226,7 +227,7 @@ fun MainScreen(
                             ) {
                                 Column(modifier = Modifier.padding(24.dp)) {
                                     Text(
-                                        text = "Exit FILA Sports?",
+                                        "Exit FILA Sports?",
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -269,6 +270,70 @@ fun MainScreen(
                         }
                     }
 
+                    // Single Deletion Confirmation Dialog
+                    if (videoToDelete != null) {
+                        Dialog(onDismissRequest = { videoToDelete = null }) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 8.dp
+                            ) {
+                                Column(modifier = Modifier.padding(24.dp)) {
+                                    Text(
+                                        "Delete Permanently?",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        "This will delete the file from your device completely.",
+                                        color = Color.Gray,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Spacer(Modifier.height(32.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.End,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        TextButton(onClick = {
+                                            videoToDelete = null
+                                        }) {
+                                            Text(
+                                                "Cancel",
+                                                color = Color.Gray,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        Button(
+                                            onClick = {
+                                                scope.launch(Dispatchers.IO) {
+                                                    FileOpsManager.deleteSingleVideo(
+                                                        context,
+                                                        videoToDelete!!
+                                                    )
+                                                    liveDb.videoDao()
+                                                        .markAsDeleted(videoToDelete!!.id)
+                                                    onRefreshStable()
+                                                }
+                                                videoToDelete = null
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                "Delete",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Box(modifier = Modifier.fillMaxSize()) {
                         key(selectedCategory, homeFeedSeed) {
                             FeedScreen(
@@ -283,12 +348,39 @@ fun MainScreen(
                                 },
                                 onToggleFavorite = { updatedVideo ->
                                     scope.launch(Dispatchers.IO) {
+                                        // Save/Remove from internal storage cache
+                                        FileOpsManager.syncFavoriteStorage(
+                                            context,
+                                            updatedVideo,
+                                            updatedVideo.isFavorite
+                                        )
                                         liveDb.videoDao().updateVideo(updatedVideo)
                                         onRefreshStable()
                                     }
                                 },
                                 onAccountSelected = { accountName -> navController.navigate("profile/$accountName") },
-                                onPauseStateChange = { isFeedPaused = it }
+                                onPauseStateChange = { isFeedPaused = it },
+                                onExportVideo = { video ->
+                                    scope.launch {
+                                        Toast.makeText(
+                                            context,
+                                            "Exporting Video...",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        val success = FileOpsManager.exportVideo(context, video)
+                                        if (success) Toast.makeText(
+                                            context,
+                                            "Saved to Gallery!",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        else Toast.makeText(
+                                            context,
+                                            "Export Failed.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                },
+                                onDeleteVideo = { video -> videoToDelete = video }
                             )
                         }
 
@@ -317,7 +409,9 @@ fun MainScreen(
 
                 composable(
                     route = "creators/{categoryName}",
-                    arguments = listOf(navArgument("categoryName") { type = NavType.StringType })
+                    arguments = listOf(navArgument("categoryName") {
+                        type = androidx.navigation.NavType.StringType
+                    })
                 ) { backStackEntry ->
                     val categoryName = backStackEntry.arguments?.getString("categoryName") ?: ""
                     Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
@@ -350,7 +444,9 @@ fun MainScreen(
 
                 composable(
                     route = "profile/{accountName}",
-                    arguments = listOf(navArgument("accountName") { type = NavType.StringType })
+                    arguments = listOf(navArgument("accountName") {
+                        type = androidx.navigation.NavType.StringType
+                    })
                 ) { backStackEntry ->
                     val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
                     Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
@@ -366,8 +462,12 @@ fun MainScreen(
                 composable(
                     route = "profile_feed/{accountName}?videoId={videoId}",
                     arguments = listOf(
-                        navArgument("accountName") { type = NavType.StringType },
-                        navArgument("videoId") { defaultValue = ""; type = NavType.StringType }
+                        navArgument("accountName") {
+                            type = androidx.navigation.NavType.StringType
+                        },
+                        navArgument("videoId") {
+                            defaultValue = ""; type = androidx.navigation.NavType.StringType
+                        }
                     )
                 ) { backStackEntry ->
                     val accountName = backStackEntry.arguments?.getString("accountName") ?: ""
@@ -394,12 +494,44 @@ fun MainScreen(
                             },
                             onToggleFavorite = { updatedVideo ->
                                 scope.launch(Dispatchers.IO) {
+                                    FileOpsManager.syncFavoriteStorage(
+                                        context,
+                                        updatedVideo,
+                                        updatedVideo.isFavorite
+                                    )
                                     liveDb.videoDao().updateVideo(updatedVideo)
                                     onRefreshStable()
                                 }
                             },
                             onAccountSelected = { navController.popBackStack() },
-                            onPauseStateChange = { isFeedPaused = it }
+                            onPauseStateChange = { isFeedPaused = it },
+                            onExportVideo = { video ->
+                                scope.launch {
+                                    Toast.makeText(
+                                        context,
+                                        "Exporting Video...",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    val success = FileOpsManager.exportVideo(context, video)
+                                    if (success) Toast.makeText(
+                                        context,
+                                        "Saved to Gallery!",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    else Toast.makeText(
+                                        context,
+                                        "Export Failed.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            onDeleteVideo = { video ->
+                                scope.launch(Dispatchers.IO) {
+                                    FileOpsManager.deleteSingleVideo(context, video)
+                                    liveDb.videoDao().markAsDeleted(video.id)
+                                    onRefreshStable()
+                                }
+                            }
                         )
 
                         AnimatedVisibility(
@@ -435,7 +567,7 @@ fun MainScreen(
                 composable(
                     route = "favorites_feed?videoId={videoId}",
                     arguments = listOf(navArgument("videoId") {
-                        defaultValue = ""; type = NavType.StringType
+                        defaultValue = ""; type = androidx.navigation.NavType.StringType
                     })
                 ) { backStackEntry ->
                     val targetId = backStackEntry.arguments?.getString("videoId")
@@ -455,12 +587,44 @@ fun MainScreen(
                             },
                             onToggleFavorite = { updatedVideo ->
                                 scope.launch(Dispatchers.IO) {
+                                    FileOpsManager.syncFavoriteStorage(
+                                        context,
+                                        updatedVideo,
+                                        updatedVideo.isFavorite
+                                    )
                                     liveDb.videoDao().updateVideo(updatedVideo)
                                     onRefreshStable()
                                 }
                             },
                             onAccountSelected = { accountName -> navController.navigate("profile/$accountName") },
-                            onPauseStateChange = { isFeedPaused = it }
+                            onPauseStateChange = { isFeedPaused = it },
+                            onExportVideo = { video ->
+                                scope.launch {
+                                    Toast.makeText(
+                                        context,
+                                        "Exporting Video...",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    val success = FileOpsManager.exportVideo(context, video)
+                                    if (success) Toast.makeText(
+                                        context,
+                                        "Saved to Gallery!",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    else Toast.makeText(
+                                        context,
+                                        "Export Failed.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            onDeleteVideo = { video ->
+                                scope.launch(Dispatchers.IO) {
+                                    FileOpsManager.deleteSingleVideo(context, video)
+                                    liveDb.videoDao().markAsDeleted(video.id)
+                                    onRefreshStable()
+                                }
+                            }
                         )
 
                         AnimatedVisibility(

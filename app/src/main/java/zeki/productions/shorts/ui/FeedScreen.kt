@@ -45,7 +45,9 @@ fun FeedScreen(
     onVideoSeen: (String) -> Unit,
     onToggleFavorite: (VideoEntity) -> Unit,
     onAccountSelected: (String) -> Unit,
-    onPauseStateChange: (Boolean) -> Unit // FIX: Removed onActiveVideoChange
+    onPauseStateChange: (Boolean) -> Unit,
+    onExportVideo: (VideoEntity) -> Unit, // NEW
+    onDeleteVideo: (VideoEntity) -> Unit  // NEW
 ) {
     if (videos.isEmpty()) {
         VoidState()
@@ -89,7 +91,6 @@ fun FeedScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             onPauseStateChange(false)
-            // FIX: Removed PiP tracking cleanup
         }
     }
 
@@ -121,8 +122,6 @@ fun FeedScreen(
 
         val targetVideo = activeAdOverride ?: baseVideo
         playerPool.updateWindow(window, targetVideo.id, isAppForeground)
-
-        // FIX: Removed PiP active video broadcast
 
         if (isAppForeground && activeAdOverride == null) {
             onVideoSeen(activeVideoId)
@@ -175,7 +174,9 @@ fun FeedScreen(
                             onToggleFavorite = onToggleFavorite,
                             onScrubbingStateChanged = { isScrubbing = it },
                             onAccountSelected = onAccountSelected,
-                            onPauseStateChange = onPauseStateChange
+                            onPauseStateChange = onPauseStateChange,
+                            onExportVideo = onExportVideo,
+                            onDeleteVideo = onDeleteVideo
                         )
                     } else {
                         Box(Modifier

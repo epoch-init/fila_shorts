@@ -5,10 +5,6 @@ import android.util.Log
 import kotlinx.coroutines.*
 import zeki.productions.shorts.data.ShortsDatabase
 
-/**
- * v1.8.3: Proactive Sync Manager.
- * Orchestrates background filesystem indexing and DB bridging.
- */
 class SyncManager(
     private val context: Context,
     private val liveDb: ShortsDatabase,
@@ -22,9 +18,8 @@ class SyncManager(
             try {
                 Log.d(TAG, "SyncManager: Proactive synchronization initiated.")
                 val indexer = VideoIndexer(liveDb.videoDao())
-                indexer.sync()
+                indexer.sync(context) // FIX: Passing Context
 
-                // Refresh the stable connection after sync
                 val stableDb = DatabaseBridge.getStableDb(context, liveDb)
                 withContext(Dispatchers.Main) {
                     onSyncComplete(stableDb)

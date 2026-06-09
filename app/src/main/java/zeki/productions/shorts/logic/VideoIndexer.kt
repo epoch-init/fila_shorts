@@ -1,5 +1,6 @@
 package zeki.productions.shorts.logic
 
+import android.content.Context
 import android.os.Environment
 import android.util.Log
 import org.json.JSONObject
@@ -13,64 +14,64 @@ import kotlin.io.path.name
 class VideoIndexer(private val dao: VideoDao) {
     private val TAG = "GEMINI_DEBUG"
 
-    suspend fun sync() {
-        val rootPath = Paths.get(Environment.getExternalStorageDirectory().absolutePath, "FILA TikTok")
-        Log.d(TAG, "Indexer: Starting NIO walk at $rootPath")
-
-        if (!Files.exists(rootPath)) {
-            Log.e(TAG, "Indexer: Root path missing at ${rootPath.toAbsolutePath()}")
-            return
-        }
+    suspend fun sync(context: Context) {
+        val externalPath =
+            Paths.get(Environment.getExternalStorageDirectory().absolutePath, "FILA TikTok")
+        val internalPath = context.getDir("favorites", Context.MODE_PRIVATE).toPath()
 
         val ledger = dao.getFullLedger().associateBy { it.id }
-        val foundEntities = mutableListOf<VideoEntity>()
+        val foundEntities = mutableMapOf<String, VideoEntity>()
         val discoveredIds = mutableSetOf<String>()
 
-        Files.walkFileTree(rootPath, object : SimpleFileVisitor<Path>() {
-            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                val fileName = file.name
+        fun scanDirectory(rootPath: Path) {
+            if (!Files.exists(rootPath)) return
 
-                // We now check for json files to act as our index source of truth
-                // because Image Ads do not have an .mp4.short file.
-                if (fileName.endsWith(".info.json.short")) {
-                    val id = fileName.substringBefore(".info.json.short")
-                    discoveredIds.add(id)
+            Files.walkFileTree(rootPath, object : SimpleFileVisitor<Path>() {
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    val fileName = file.name
 
-                    val relPath = rootPath.relativize(file)
-                    val depth = relPath.nameCount
+                    if (fileName.endsWith(".info.json.short")) {
+                        val id = fileName.substringBefore(".info.json.short")
+                        discoveredIds.add(id)
 
-                    val categoryName =
-                        if (depth >= 3) relPath.getName(0).toString() else "Uncategorized"
-                    val accountName = if (depth >= 3) relPath.getName(1)
-                        .toString() else if (depth == 2) relPath.getName(0)
-                        .toString() else "Unknown"
+                        val relPath = rootPath.relativize(file)
+                        val depth = relPath.nameCount
 
-                    val historical = ledger[id]
-                    val extracted = extractNewEntity(id, accountName, categoryName, file.toFile())
+                        val categoryName =
+                            if (depth >= 3) relPath.getName(0).toString() else "Uncategorized"
+                        val accountName = if (depth >= 3) relPath.getName(1)
+                            .toString() else if (depth == 2) relPath.getName(0)
+                            .toString() else "Unknown"
 
-                    if (historical != null) {
-                        val updatedRecord = historical.copy(
-                            accountName = extracted.accountName,
-                            categories = extracted.categories,
-                            videoPath = extracted.videoPath,
-                            imagePath = extracted.imagePath,
-                            jsonPath = extracted.jsonPath,
-                            description = extracted.description,
-                            isAd = extracted.isAd,
-                            adType = extracted.adType,
-                            isDeleted = false
-                        )
+                        val historical = ledger[id]
+                        val extracted =
+                            extractNewEntity(id, accountName, categoryName, file.toFile())
 
-                        if (historical != updatedRecord) {
-                            foundEntities.add(updatedRecord)
+                        if (historical != null) {
+                            val updatedRecord = historical.copy(
+                                accountName = extracted.accountName,
+                                categories = extracted.categories,
+                                videoPath = extracted.videoPath,
+                                imagePath = extracted.imagePath,
+                                jsonPath = extracted.jsonPath,
+                                description = extracted.description,
+                                isAd = extracted.isAd,
+                                adType = extracted.adType,
+                                isDeleted = false
+                            )
+                            foundEntities[id] = updatedRecord
+                        } else {
+                            foundEntities[id] = extracted
                         }
-                    } else {
-                        foundEntities.add(extracted)
                     }
+                    return FileVisitResult.CONTINUE
                 }
-                return FileVisitResult.CONTINUE
-            }
-        })
+            })
+        }
+
+        // Scan both locations. Internal path processed second to guarantee paths resolve correctly if external is deleted.
+        scanDirectory(externalPath)
+        scanDirectory(internalPath)
 
         val toMarkDeleted = ledger.keys.filter { it !in discoveredIds && !ledger[it]!!.isDeleted }
         Log.d(
@@ -78,7 +79,7 @@ class VideoIndexer(private val dao: VideoDao) {
             "Indexer: Found ${foundEntities.size} to insert/update, ${toMarkDeleted.size} to mark deleted."
         )
 
-        dao.syncLedger(foundEntities, toMarkDeleted)
+        dao.syncLedger(foundEntities.values.toList(), toMarkDeleted)
     }
 
     private fun extractNewEntity(
@@ -120,7 +121,7 @@ class VideoIndexer(private val dao: VideoDao) {
         return VideoEntity(
             id = id,
             accountName = account,
-            videoPath = if (vidFile.exists()) vidFile.absolutePath else "", // Empty if image ad
+            videoPath = if (vidFile.exists()) vidFile.absolutePath else "",
             jsonPath = jsonFile.absolutePath,
             imagePath = imgFile.absolutePath,
             description = desc,

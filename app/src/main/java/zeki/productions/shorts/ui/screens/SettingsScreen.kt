@@ -1,19 +1,14 @@
 package zeki.productions.shorts.ui.screens
 
 import android.os.Environment
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -25,15 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import zeki.productions.shorts.R
 import zeki.productions.shorts.ui.theme.AppTheme
 import zeki.productions.shorts.ui.theme.ThemeManager
 import java.io.File
@@ -46,6 +37,7 @@ fun SettingsScreen(
     onNavigateToAbout: () -> Unit,
     onNavigateToFavorites: () -> Unit
 ) {
+    val shortsDir = File(Environment.getExternalStorageDirectory(), "FILA TikTok")
     val currentTheme by themeManager.currentTheme.collectAsState()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -59,7 +51,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text(
-                        text = "Delete Seen Records?",
+                        text = "Purge Seen Records?",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -100,7 +92,6 @@ fun SettingsScreen(
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 16.dp)
             .padding(bottom = 32.dp)
-            .verticalScroll(rememberScrollState(0)),
     ) {
         Text(
             text = "CONTROL CENTER",
@@ -109,39 +100,9 @@ fun SettingsScreen(
             fontWeight = FontWeight.Black
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp, bottom = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.app_icon),
-                    contentDescription = "App Icon",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "FILA TikTok",
-                color = MaterialTheme.colorScheme.onBackground,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp
-            )
-        }
-
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "“Revolutionizing secure, offline learning and entertainment. No servers. No tracking. Just the content you love, locked safely on your device.”",
+            text = "“Revolutionizing secure, offline sports entertainment. No servers. No tracking. Just the content you love, locked safely on your device.”",
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.bodyMedium,
             fontStyle = FontStyle.Italic,
@@ -153,7 +114,7 @@ fun SettingsScreen(
         Text("APPEARANCE", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(AppTheme.entries.toTypedArray()) { theme ->
+            items(AppTheme.values()) { theme ->
                 val isSelected = theme == currentTheme
                 val displayColor = when (theme) {
                     AppTheme.OXBLOOD -> Color(0xFF8B0000)
@@ -199,8 +160,7 @@ fun SettingsScreen(
                 modifier = Modifier.weight(1f),
                 title = "ROOT PATH",
                 value = "/FILA TikTok",
-                subtitle = "Local Storage",
-                fontsize = 19
+                subtitle = "Local Storage"
             )
         }
 
@@ -236,7 +196,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "About FILA TikTok",
+                "About FILA Sports",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -263,7 +223,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "Delete Seen Records",
+                "Purge Seen Records",
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -276,8 +236,7 @@ private fun InfoCard(
     modifier: Modifier = Modifier,
     title: String,
     value: String,
-    subtitle: String,
-    fontsize: Int = 28
+    subtitle: String
 ) {
     Column(
         modifier = modifier
@@ -291,7 +250,7 @@ private fun InfoCard(
         Text(
             text = value,
             color = MaterialTheme.colorScheme.onBackground,
-            fontSize = fontsize.sp,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Black
         )
         Spacer(modifier = Modifier.height(4.dp))

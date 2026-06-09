@@ -5,8 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -25,9 +27,10 @@ fun VideoInteractionOverlay(
     video: VideoEntity,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
-    onAccountSelected: (String) -> Unit
+    onAccountSelected: (String) -> Unit,
+    onExportVideo: () -> Unit,
+    onDeleteVideo: () -> Unit
 ) {
-    // FIX: Get dynamic system navigation bar height
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -46,7 +49,6 @@ fun VideoInteractionOverlay(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                // FIX: Dynamic padding + 90.dp to clear both system buttons and app menu
                 .padding(start = 16.dp, end = 8.dp, bottom = navBarHeight + 90.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.Bottom
@@ -79,7 +81,7 @@ fun VideoInteractionOverlay(
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (video.viewedCount > 0) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -97,7 +99,7 @@ fun VideoInteractionOverlay(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Seen",
+                            "Seen",
                             color = Color.White,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold
@@ -105,11 +107,9 @@ fun VideoInteractionOverlay(
                     }
                 }
 
+                // Favorite
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(
-                        onClick = onToggleFavorite,
-                        modifier = Modifier.size(48.dp)
-                    ) {
+                    IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Favorite",
@@ -118,7 +118,43 @@ fun VideoInteractionOverlay(
                         )
                     }
                     Text(
-                        text = if (isFavorite) "Liked" else "Like",
+                        if (isFavorite) "Liked" else "Like",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Export
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = onExportVideo, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = "Export",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Text(
+                        "Export",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Delete
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = onDeleteVideo, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Text(
+                        "Delete",
                         color = Color.White,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold

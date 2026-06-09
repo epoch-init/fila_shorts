@@ -110,9 +110,9 @@ class MainActivity : ComponentActivity() {
 
     private suspend fun performPhysicalDeletion() {
         val dao = liveDb?.videoDao() ?: return
-        val rootShortsDir = File(Environment.getExternalStorageDirectory(), "FILA TikTok").absolutePath
+        val rootShortsDir =
+            File(Environment.getExternalStorageDirectory(), "FILA TikTok").absolutePath
 
-        // FIX: The DAO now intrinsically blocks Favorited videos from being returned here.
         dao.getSeenActiveVideos().forEach { video ->
             File(video.videoPath).delete()
             File(video.jsonPath).delete()

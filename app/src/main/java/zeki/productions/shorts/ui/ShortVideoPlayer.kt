@@ -55,7 +55,9 @@ fun ShortVideoPlayer(
     onToggleFavorite: (VideoEntity) -> Unit,
     onScrubbingStateChanged: (Boolean) -> Unit,
     onAccountSelected: (String) -> Unit,
-    onPauseStateChange: (Boolean) -> Unit // FIX: State specifically tracks pauses
+    onPauseStateChange: (Boolean) -> Unit,
+    onExportVideo: (VideoEntity) -> Unit, // NEW
+    onDeleteVideo: (VideoEntity) -> Unit  // NEW
 ) {
     val context = LocalContext.current
     var isPausedByUser by remember { mutableStateOf(false) }
@@ -91,7 +93,6 @@ fun ShortVideoPlayer(
 
     LaunchedEffect(isActive, isPausedByUser) {
         exoPlayer.playWhenReady = isActive && !isPausedByUser
-        // FIX: The active player guarantees the UI hides unless specifically paused.
         if (isActive) onPauseStateChange(isPausedByUser)
     }
 
@@ -143,6 +144,7 @@ fun ShortVideoPlayer(
             }
         )
 
+        // RESTORED USER'S LOGO PLACEMENT
         Box(modifier = Modifier.fillMaxSize()) {
             Image(
                 painter = painterResource(id = R.drawable.company_logo),
@@ -150,7 +152,7 @@ fun ShortVideoPlayer(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 90.dp, end=20.dp)
+                    .padding(top = 90.dp, end = 20.dp)
                     .height(32.dp)
                     .alpha(0.8f)
             )
@@ -169,7 +171,9 @@ fun ShortVideoPlayer(
                         localIsFavorite = !localIsFavorite
                         onToggleFavorite(video.copy(isFavorite = localIsFavorite))
                     },
-                    onAccountSelected = onAccountSelected
+                    onAccountSelected = onAccountSelected,
+                    onExportVideo = { onExportVideo(video) },
+                    onDeleteVideo = { onDeleteVideo(video) }
                 )
             }
         }
